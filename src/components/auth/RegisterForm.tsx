@@ -1,46 +1,56 @@
 'use client'
 
 import { useState }      from 'react'
-import { Loader2, Eye, EyeOff, ShieldCheck, Truck, CheckCircle2 } from 'lucide-react'
-import { signUp }        from '@/services/authService'
-import type { UserRole } from '@/types/session'
+import { Loader2, ShieldCheck, Truck, CheckCircle2 } from 'lucide-react'
+import { createClient }  from '@/lib/supabase/client'
+import type { AccessRequestRole } from '@/types/accessRequest'
 
-type RegistrableRole = Exclude<UserRole, 'admin'>
-
-const ROLES: { id: RegistrableRole; label: string; desc: string; icon: React.ReactNode }[] = [
+const ROLES: { id: AccessRequestRole; label: string; desc: string; icon: React.ReactNode }[] = [
   {
     id:    'assisteur',
     label: 'Assisteur',
-    desc:  'Créer et suivre les demandes',
+    desc:  'Compagnie d\'assurance',
     icon:  <ShieldCheck className="w-5 h-5" />,
   },
   {
     id:    'loueur',
     label: 'Loueur',
-    desc:  'Recevoir et traiter les demandes',
+    desc:  'Société de location',
     icon:  <Truck className="w-5 h-5" />,
   },
 ]
 
-export function RegisterForm() {
-  const [role, setRole]               = useState<RegistrableRole>('assisteur')
+export function AccessRequestForm() {
+  const [role, setRole]               = useState<AccessRequestRole>('loueur')
   const [fullName, setFullName]       = useState('')
   const [companyName, setCompanyName] = useState('')
   const [email, setEmail]             = useState('')
-  const [password, setPassword]       = useState('')
-  const [showPwd, setShowPwd]         = useState(false)
+  const [phone, setPhone]             = useState('')
+  const [message, setMessage]         = useState('')
   const [loading, setLoading]         = useState(false)
   const [error, setError]             = useState<string | null>(null)
   const [done, setDone]               = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (password.length < 8) { setError('Le mot de passe doit contenir au moins 8 caractères.'); return }
     setError(null)
     setLoading(true)
 
-    const { error: err } = await signUp(email.trim(), password, role, fullName.trim(), companyName.trim())
-    if (err) { setError(err); setLoading(false); return }
+    const supabase = createClient()
+    const { error: err } = await supabase.from('access_requests').insert({
+      email:        email.trim(),
+      full_name:    fullName.trim(),
+      company_name: companyName.trim() || null,
+      role,
+      phone:        phone.trim() || null,
+      message:      message.trim() || null,
+    })
+
+    if (err) {
+      setError('Une erreur est survenue. Veuillez réessayer.')
+      setLoading(false)
+      return
+    }
     setDone(true)
     setLoading(false)
   }
@@ -52,10 +62,10 @@ export function RegisterForm() {
           <CheckCircle2 className="w-7 h-7 text-green-600" />
         </div>
         <div>
-          <h3 className="font-bold text-slate-900 text-lg">Compte créé !</h3>
+          <h3 className="font-bold text-slate-900 text-lg">Demande envoyée !</h3>
           <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
-            Un email de confirmation a été envoyé à <strong>{email}</strong>.
-            Cliquez sur le lien pour activer votre compte.
+            L'équipe Drives On va examiner votre dossier et vous contacter à{' '}
+            <strong>{email}</strong> pour finaliser votre accès.
           </p>
         </div>
         <a href="/login" className="inline-block text-brand-500 hover:text-brand-600 text-sm font-semibold">
@@ -65,12 +75,14 @@ export function RegisterForm() {
     )
   }
 
+  const inputCls = 'w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 transition-all'
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
 
-      {/* Sélection du rôle */}
+      {/* Sélection du type de partenaire */}
       <div className="flex flex-col gap-2">
-        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Votre espace</span>
+        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Votre activité</span>
         <div className="grid grid-cols-2 gap-3">
           {ROLES.map(r => (
             <button
@@ -100,72 +112,65 @@ export function RegisterForm() {
         </div>
       </div>
 
-      {/* Nom complet */}
       <input
         type="text"
         value={fullName}
         onChange={e => { setFullName(e.target.value); setError(null) }}
-        placeholder="Nom complet"
-        className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 transition-all"
+        placeholder="Nom complet *"
+        className={inputCls}
         required
       />
 
-      {/* Entreprise */}
       <input
         type="text"
         value={companyName}
         onChange={e => setCompanyName(e.target.value)}
-        placeholder="Entreprise (optionnel)"
-        className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 transition-all"
+        placeholder="Société / agence *"
+        className={inputCls}
+        required
       />
 
-      {/* Email */}
       <input
         type="email"
         value={email}
         onChange={e => { setEmail(e.target.value); setError(null) }}
-        placeholder="Email professionnel"
-        className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 transition-all"
+        placeholder="Email professionnel *"
+        className={inputCls}
         autoComplete="email"
         required
       />
 
-      {/* Mot de passe */}
-      <div className="relative">
-        <input
-          type={showPwd ? 'text' : 'password'}
-          value={password}
-          onChange={e => { setPassword(e.target.value); setError(null) }}
-          placeholder="Mot de passe (min. 8 caractères)"
-          className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 transition-all"
-          autoComplete="new-password"
-          required
-          minLength={8}
-        />
-        <button
-          type="button"
-          onClick={() => setShowPwd(v => !v)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-        >
-          {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-        </button>
-      </div>
+      <input
+        type="tel"
+        value={phone}
+        onChange={e => setPhone(e.target.value)}
+        placeholder="Téléphone (optionnel)"
+        className={inputCls}
+      />
+
+      <textarea
+        value={message}
+        onChange={e => setMessage(e.target.value)}
+        placeholder="Message (optionnel) — décrivez votre activité, votre zone géographique…"
+        rows={3}
+        className={`${inputCls} resize-none`}
+      />
 
       {error && <p className="text-xs text-red-500">{error}</p>}
 
       <button
         type="submit"
-        disabled={!email || !password || !fullName || loading}
+        disabled={!email || !fullName || !companyName || loading}
         className="flex items-center justify-center gap-2 py-3 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-semibold text-sm transition-colors"
       >
         {loading
-          ? <><Loader2 className="w-4 h-4 animate-spin" />Création…</>
-          : 'Créer mon compte →'
+          ? <><Loader2 className="w-4 h-4 animate-spin" />Envoi…</>
+          : 'Envoyer ma demande →'
         }
       </button>
 
       <p className="text-center text-xs text-slate-400">
-        Déjà un compte ?{' '}
+        Déjà partenaire ?{' '}
         <a href="/login" className="text-brand-500 hover:text-brand-600 font-medium">
           Se connecter
         </a>

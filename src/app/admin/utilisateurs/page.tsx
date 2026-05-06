@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import {
   Plus, ShieldCheck, Truck, Copy, Check, ToggleLeft, ToggleRight,
   Building2, Mail, Phone, Clock, Loader2, Eye, EyeOff, UserCircle,
@@ -388,14 +389,12 @@ export default function AdminUtilisateursPage() {
             Gérez les accès par société et par agence.
           </p>
         </div>
-        <button
-          onClick={() => tab === 'assisteur' ? openAddAssisteur() : setModal('loueur')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-colors shadow-sm ${
-            tab === 'assisteur' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-brand-500 hover:bg-brand-600'
-          }`}
+        <Link
+          href="/admin/utilisateurs/nouveau"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition-colors shadow-sm"
         >
-          <Plus className="w-4 h-4" /> Créer un compte
-        </button>
+          <Plus className="w-4 h-4" /> Inviter un partenaire
+        </Link>
       </div>
 
       {/* Tabs */}

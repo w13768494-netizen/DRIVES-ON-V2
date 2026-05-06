@@ -27,7 +27,11 @@ export function LoginForm() {
 
     const { session, error: err } = await signIn(email.trim(), password)
     if (err || !session) {
-      setError('Email ou mot de passe incorrect.')
+      if (err?.toLowerCase().includes('confirm')) {
+        setError('Email non confirmé — vérifie ta boîte mail ou contacte un administrateur.')
+      } else {
+        setError('Email ou mot de passe incorrect.')
+      }
       setLoading(false)
       return
     }
@@ -106,9 +110,9 @@ export function LoginForm() {
       </button>
 
       <p className="text-center text-xs text-slate-400">
-        Pas encore de compte ?{' '}
-        <a href="/register" className="text-brand-500 hover:text-brand-600 font-medium">
-          Créer un accès
+        Pas encore partenaire ?{' '}
+        <a href="/demande-acces" className="text-brand-500 hover:text-brand-600 font-medium">
+          Demander un accès
         </a>
       </p>
     </form>

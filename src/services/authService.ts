@@ -38,25 +38,6 @@ export async function signIn(
   return { session, error: null }
 }
 
-// ── signUp ────────────────────────────────────────────────────────────────────
-// TypeScript interdit 'admin' — le trigger handle_new_user le bloque aussi côté DB.
-
-export async function signUp(
-  email: string,
-  password: string,
-  role: Exclude<UserRole, 'admin'>,
-  fullName: string,
-  companyName: string,
-): Promise<{ error: string | null }> {
-  const supabase = createClient()
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { data: { role, full_name: fullName, company_name: companyName } },
-  })
-  return { error: error?.message ?? null }
-}
-
 // ── signOut ───────────────────────────────────────────────────────────────────
 
 export async function signOut(): Promise<void> {

@@ -3,13 +3,13 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { DrivesOnLogo } from '@/components/shared/DrivesOnLogo'
-import { Users, FileText, MapPin, CalendarClock } from 'lucide-react'
+import { Users, MapPin, CalendarClock, UserPlus } from 'lucide-react'
 
 const NAV = [
-  { href: '/admin/reservations',  icon: CalendarClock, label: 'Réservations'  },
-  { href: '/admin/candidatures',  icon: FileText,      label: 'Candidatures'  },
-  { href: '/admin/utilisateurs',  icon: Users,         label: 'Utilisateurs'  },
-  { href: '/admin/deploiement',   icon: MapPin,        label: 'Déploiement'   },
+  { href: '/admin/reservations',    icon: CalendarClock, label: 'Réservations'      },
+  { href: '/admin/demandes-acces',  icon: UserPlus,      label: 'Demandes d\'accès' },
+  { href: '/admin/utilisateurs',    icon: Users,         label: 'Utilisateurs'      },
+  { href: '/admin/deploiement',     icon: MapPin,        label: 'Déploiement'       },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
