@@ -1,0 +1,36 @@
+// Server-side only — ne pas importer depuis des composants client
+
+const POSTMARK_KEY = process.env.POSTMARK_API_KEY
+const FROM_EMAIL   = process.env.NOTIFY_FROM_EMAIL ?? 'notifications@drives-on.fr'
+
+export async function sendEmail(params: {
+  to:      string
+  subject: string
+  html:    string
+}): Promise<void> {
+  if (!POSTMARK_KEY) return  // silencieux si clé non configurée
+
+  try {
+    const res = await fetch('https://api.postmarkapp.com/email', {
+      method:  'POST',
+      headers: {
+        'Accept':                   'application/json',
+        'Content-Type':             'application/json',
+        'X-Postmark-Server-Token':  POSTMARK_KEY,
+      },
+      body: JSON.stringify({
+        From:          FROM_EMAIL,
+        To:            params.to,
+        Subject:       params.subject,
+        HtmlBody:      params.html,
+        MessageStream: 'outbound',
+      }),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      console.error('[email] Postmark error', res.status, body)
+    }
+  } catch (err) {
+    console.error('[email] Failed to send to', params.to, err)
+  }
+}
