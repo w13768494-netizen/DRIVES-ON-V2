@@ -161,7 +161,7 @@ export default function HomePage() {
       {/* ── Footer ── */}
       <footer className="relative text-center pb-6 flex flex-col items-center gap-2">
         <p className="text-xs text-slate-700">Version démo — données simulées</p>
-        <Link href="/admin/candidatures" className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors">
+        <Link href="/admin" className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors">
           Admin
         </Link>
       </footer>

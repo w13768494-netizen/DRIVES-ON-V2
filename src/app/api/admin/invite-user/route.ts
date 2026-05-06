@@ -1,23 +1,7 @@
-import { createClient as createServerClient } from '@/lib/supabase/server'
-import { createClient }                       from '@supabase/supabase-js'
-import { NextResponse, type NextRequest }     from 'next/server'
+import { createClient }                   from '@supabase/supabase-js'
+import { NextResponse, type NextRequest } from 'next/server'
 
 export async function POST(request: NextRequest) {
-  // ── Vérifier que le demandeur est admin ─────────────────────────────────────
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profile?.role !== 'admin') {
-    return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
-  }
-
   // ── Paramètres de l'invitation ───────────────────────────────────────────────
   const { email, role, full_name, company_name, requestId } =
     await request.json() as {
@@ -43,7 +27,7 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
     data:       { role, full_name, company_name: company_name ?? '' },
-    redirectTo: `${origin}/auth/callback?next=/auth/set-password`,
+    redirectTo: `${origin}/auth/set-password`,
   })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -54,7 +38,6 @@ export async function POST(request: NextRequest) {
       .from('access_requests')
       .update({
         status:      'approved',
-        reviewed_by: user.id,
         reviewed_at: new Date().toISOString(),
       })
       .eq('id', requestId)

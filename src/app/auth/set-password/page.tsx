@@ -23,11 +23,11 @@ export default function SetPasswordPage() {
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
 
-  // Vérifier qu'une session existe (établie par /auth/callback après l'invitation)
+  // getSession() détecte les tokens dans le hash (flux invitation)
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { router.replace('/login'); return }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) { router.replace('/login'); return }
       setReady(true)
     })
   }, [router])
