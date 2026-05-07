@@ -144,61 +144,37 @@ export async function getMatchingResults(params: MatchingParams): Promise<Matchi
 async function getMatchingResultsSupabase(params: MatchingParams): Promise<MatchingResult[]> {
   const { latitude, longitude, vehicleCategory, radiusKm = 50, durationDays } = params
 
-  console.log(`[matching] catégorie="${vehicleCategory}" lat=${latitude} lng=${longitude} radius=${radiusKm}km`)
-
   const [agenciesRes, categoriesRes] = await Promise.all([
     supabase.from('rental_agencies').select('*').eq('active', true).eq('is_available', true),
     supabase.from('agency_vehicle_categories').select('*').eq('category', vehicleCategory).eq('available', true),
   ])
 
   if (agenciesRes.error) {
-    console.error('[matching] rental_agencies error:', agenciesRes.error.message)
+    console.error('[matchingService] rental_agencies:', agenciesRes.error.message)
     return []
   }
   if (categoriesRes.error) {
-    console.error('[matching] agency_vehicle_categories error:', categoriesRes.error.message)
+    console.error('[matchingService] agency_vehicle_categories:', categoriesRes.error.message)
     return []
   }
 
   const agencies = (agenciesRes.data  ?? []) as RentalAgencyRow[]
-  const avcRows  = (categoriesRes.data ?? []) as AgencyVehicleCategoryRow[]
-
-  console.log(`[matching] agences actives trouvées : ${agencies.length}`)
-  agencies.forEach(a => console.log(`  agence id=${a.id} name="${a.agency_name}" lat=${a.lat} lng=${a.lng} is_available=${a.is_available} active=${a.active}`))
-
-  console.log(`[matching] catégories "${vehicleCategory}" disponibles : ${avcRows.length}`)
-  avcRows.forEach(r => console.log(`  avc agency_id=${r.agency_id} available=${r.available} stock=${r.stock_estimate} daily_rate=${r.daily_rate}`))
-
-  const avcMap = new Map(avcRows.map(r => [r.agency_id, r]))
+  const avcMap   = new Map(
+    ((categoriesRes.data ?? []) as AgencyVehicleCategoryRow[]).map(r => [r.agency_id, r]),
+  )
 
   const results: MatchingResult[] = []
 
   for (const agency of agencies) {
-    const label = `"${agency.agency_name}" (${agency.id})`
-
-    if (!agency.lat || !agency.lng) {
-      console.log(`[matching] EXCLUE ${label} — lat/lng manquants (lat=${agency.lat} lng=${agency.lng})`)
-      continue
-    }
+    if (!agency.lat || !agency.lng) continue
 
     const avc = avcMap.get(agency.id)
-    if (!avc) {
-      console.log(`[matching] EXCLUE ${label} — catégorie "${vehicleCategory}" absente de agency_vehicle_categories`)
-      continue
-    }
+    if (!avc) continue
 
-    if (!avc.available || avc.stock_estimate <= 0) {
-      console.log(`[matching] EXCLUE ${label} — disponibilité KO (available=${avc.available} stock=${avc.stock_estimate})`)
-      continue
-    }
+    if (!avc.available || avc.stock_estimate <= 0) continue
 
     const distanceKm = computeDistance(latitude, longitude, agency.lat, agency.lng)
-    if (distanceKm > radiusKm) {
-      console.log(`[matching] EXCLUE ${label} — distance=${distanceKm.toFixed(1)}km > radius=${radiusKm}km`)
-      continue
-    }
-
-    console.log(`[matching] INCLUSE ${label} — distance=${distanceKm.toFixed(1)}km stock=${avc.stock_estimate}`)
+    if (distanceKm > radiusKm) continue
 
     const company = agencyToCompany(agency, avc)
     results.push({
