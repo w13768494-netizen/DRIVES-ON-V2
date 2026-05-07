@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Search } from 'lucide-react'
-import { RentalStats }        from '@/components/loueur/RentalStats'
-import { RentalRequestCard }  from '@/components/loueur/RentalRequestCard'
-import { getReceivedRequests } from '@/services/loueurService'
-import { getSession }          from '@/services/currentSessionService'
-import type { ReceivedRequest } from '@/types/loueur'
-import type { MockSession }    from '@/types/session'
+import { Search, Building2 }  from 'lucide-react'
+import { RentalStats }         from '@/components/loueur/RentalStats'
+import { RentalRequestCard }   from '@/components/loueur/RentalRequestCard'
+import { getMyAgencies, type RentalAgencyRow } from '@/services/rentalAgencyService'
+import { getReceivedRequests }  from '@/services/loueurService'
+import { getSession }           from '@/services/currentSessionService'
+import type { ReceivedRequest }  from '@/types/loueur'
+import type { MockSession }      from '@/types/session'
 import { getDisplayStatus, type DisplayStatusType } from '@/lib/displayStatus'
 
 type FilterTab = 'toutes' | DisplayStatusType
@@ -28,16 +29,70 @@ function matchesTab(r: ReceivedRequest, tab: FilterTab): boolean {
 
 export default function LoueurDashboardPage() {
   const [requests, setRequests] = useState<ReceivedRequest[]>([])
-  const [session, setSession]   = useState<MockSession | null>(null)
-  const [loading, setLoading]   = useState(true)
-  const [search, setSearch]     = useState('')
-  const [tab, setTab]           = useState<FilterTab>('toutes')
+  const [agencies, setAgencies] = useState<RentalAgencyRow[] | null>(null)
+  const [session,  setSessionState] = useState<MockSession | null>(null)
+  const [loading,  setLoading]  = useState(true)
+  const [search,   setSearch]   = useState('')
+  const [tab,      setTab]      = useState<FilterTab>('toutes')
 
   useEffect(() => {
-    setSession(getSession())
-    getReceivedRequests().then(data => { setRequests(data); setLoading(false) })
+    setSessionState(getSession())
+
+    getMyAgencies().then(async myAgencies => {
+      setAgencies(myAgencies)
+      const received = await getReceivedRequests(myAgencies)
+      setRequests(received)
+      setLoading(false)
+    })
   }, [])
 
+  const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+
+  const header = (
+    <div>
+      <p className="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-1 capitalize">{today}</p>
+      <h1 className="text-2xl font-black text-slate-900">
+        {session ? `Bonjour, ${session.userName.split(' ')[0]}` : 'Tableau de bord'}
+      </h1>
+      <p className="text-sm text-slate-500 mt-0.5">
+        {session?.company ?? 'Demandes reçues par vos agences'}
+      </p>
+    </div>
+  )
+
+  // Chargement initial
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6">
+        {header}
+        <StatsSkeleton />
+        <CardSkeleton />
+      </div>
+    )
+  }
+
+  // Aucune agence rattachée — état de configuration
+  if (agencies !== null && agencies.length === 0) {
+    return (
+      <div className="flex flex-col gap-6">
+        {header}
+        <div className="flex flex-col items-center py-20 text-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-brand-50 flex items-center justify-center">
+            <Building2 className="w-7 h-7 text-brand-400" aria-hidden="true" />
+          </div>
+          <div>
+            <p className="font-semibold text-slate-700">Votre espace loueur est en cours de configuration</p>
+            <p className="text-sm text-slate-400 mt-1 max-w-xs mx-auto leading-relaxed">
+              Aucune agence n'est encore rattachée à votre compte.
+              L'équipe Drives On configurera votre espace prochainement.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Dashboard avec agences
   const filtered = requests.filter(r => {
     if (!matchesTab(r, tab)) return false
     const q = search.toLowerCase()
@@ -51,26 +106,14 @@ export default function LoueurDashboardPage() {
   const tabCount = (key: FilterTab) =>
     key === 'toutes' ? requests.length : requests.filter(r => matchesTab(r, key)).length
 
-  const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-
   return (
     <div className="flex flex-col gap-6">
 
-      {/* ── Header ── */}
-      <div>
-        <p className="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-1 capitalize">{today}</p>
-        <h1 className="text-2xl font-black text-slate-900">
-          {session ? `Bonjour, ${session.userName.split(' ')[0]}` : 'Tableau de bord'}
-        </h1>
-        <p className="text-sm text-slate-500 mt-0.5">
-          {session?.company ?? 'Demandes reçues par vos agences'}
-        </p>
-      </div>
+      {header}
 
-      {/* ── Stats ── */}
-      {loading ? <StatsSkeleton /> : <RentalStats requests={requests} />}
+      <RentalStats requests={requests} />
 
-      {/* ── Recherche + Tabs ── */}
+      {/* Recherche + Tabs */}
       <div className="space-y-3">
         <div className="relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" aria-hidden="true" />
@@ -112,10 +155,8 @@ export default function LoueurDashboardPage() {
         </div>
       </div>
 
-      {/* ── Liste ── */}
-      {loading ? (
-        <CardSkeleton />
-      ) : filtered.length === 0 ? (
+      {/* Liste */}
+      {filtered.length === 0 ? (
         <EmptyState search={search} onClear={() => setSearch('')} />
       ) : (
         <div className="flex flex-col gap-3">
@@ -174,9 +215,9 @@ function EmptyState({ search, onClear }: { search: string; onClear: () => void }
         <Search className="w-7 h-7 text-slate-400" aria-hidden="true" />
       </div>
       <div>
-        <p className="font-semibold text-slate-700">Aucune demande trouvée</p>
+        <p className="font-semibold text-slate-700">Aucune demande reçue pour le moment</p>
         <p className="text-sm text-slate-400 mt-1">
-          {search ? 'Aucun résultat pour cette recherche.' : "Vous n'avez pas encore reçu de demande."}
+          {search ? 'Aucun résultat pour cette recherche.' : 'Les demandes assignées à vos agences apparaîtront ici.'}
         </p>
       </div>
       {search && (

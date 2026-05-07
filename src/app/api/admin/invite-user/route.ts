@@ -2,6 +2,7 @@ import { createClient }                   from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 import { sendEmail }                      from '@/lib/email'
 import { buildInviteEmailHtml }           from '@/lib/inviteEmail'
+import { requireAdmin }                   from '@/lib/requireAdmin'
 
 const adminClient = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,6 +11,9 @@ const adminClient = createClient(
 )
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAdmin()
+  if (!auth.ok) return auth.response
+
   const { email, role, full_name, company_name, requestId } =
     await request.json() as {
       email:        string
@@ -25,7 +29,6 @@ export async function POST(request: NextRequest) {
 
   const origin = request.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL ?? ''
 
-  // Génère le lien d'invitation sans envoyer l'email Supabase
   const { data, error } = await adminClient.auth.admin.generateLink({
     type:  'invite',
     email,
@@ -37,14 +40,12 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-  // Construit un lien qui passe par notre callback serveur (évite les hash fragments)
   const inviteLink =
     `${origin}/auth/callback` +
     `?token_hash=${data.properties.hashed_token}` +
     `&type=invite` +
     `&next=/auth/set-password`
 
-  // Envoie l'email via Postmark
   const emailResult = await sendEmail({
     to:      email,
     subject: 'Votre accès Drives On est prêt',
@@ -55,7 +56,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Email non envoyé : ${emailResult.error}` }, { status: 500 })
   }
 
-  // Marquer la demande comme approuvée
   if (requestId) {
     await adminClient
       .from('access_requests')

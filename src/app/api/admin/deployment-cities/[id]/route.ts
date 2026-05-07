@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import type { DeploymentStatus } from '@/types/deploymentCity'
+import { createClient }              from '@supabase/supabase-js'
+import type { DeploymentStatus }     from '@/types/deploymentCity'
+import { requireAdmin }              from '@/lib/requireAdmin'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,6 +15,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await requireAdmin()
+  if (!auth.ok) return auth.response
+
   const { id } = await params
 
   let status: DeploymentStatus

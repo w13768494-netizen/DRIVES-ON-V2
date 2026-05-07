@@ -1,5 +1,6 @@
-import { createClient }           from '@supabase/supabase-js'
+import { createClient }                    from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
+import { requireAdmin }                   from '@/lib/requireAdmin'
 
 const adminClient = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,6 +9,9 @@ const adminClient = createClient(
 )
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAdmin()
+  if (!auth.ok) return auth.response
+
   const status = request.nextUrl.searchParams.get('status') ?? 'pending'
 
   const { data, error } = await adminClient
@@ -22,9 +26,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const auth = await requireAdmin()
+  if (!auth.ok) return auth.response
+
   const { id, status, reviewed_by } = await request.json() as {
-    id: string
-    status: 'approved' | 'rejected'
+    id:           string
+    status:       'approved' | 'rejected'
     reviewed_by?: string
   }
 

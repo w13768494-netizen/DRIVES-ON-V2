@@ -21,12 +21,29 @@ export async function middleware(request: NextRequest) {
     },
   )
 
-  // Refresh session so cookies stay up to date
-  await supabase.auth.getUser()
+  // Refresh session so cookies stay up to date (needed for all matched routes)
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // /admin — requires an authenticated user with role 'admin'
+  if (request.nextUrl.pathname.startsWith('/admin')) {
+    if (!user) {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile || profile.role !== 'admin') {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+  }
 
   return response
 }
 
 export const config = {
-  matcher: ['/loueur/:path*', '/assisteur/:path*'],
+  matcher: ['/loueur/:path*', '/assisteur/:path*', '/admin/:path*'],
 }

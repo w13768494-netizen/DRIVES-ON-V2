@@ -254,7 +254,29 @@ export async function sendRequest(
   const ids       = Array.isArray(agencyIds) ? agencyIds : [agencyIds]
   const primaryId = ids[0]
   const now       = new Date()
-  const session   = getSession()
+
+  let createdByUserId: string
+  let createdByName:   string
+
+  if (USE_SUPABASE) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Utilisateur non authentifié — impossible de créer une demande.')
+
+    createdByUserId = user.id
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .single()
+    createdByName = (profile as { full_name?: string | null } | null)?.full_name
+      ?? user.email
+      ?? 'Assisteur'
+  } else {
+    const session   = getSession()
+    createdByUserId = session?.userId   ?? 'dev-user'
+    createdByName   = session?.userName ?? 'Dev'
+  }
 
   const request: AssistanceRequest = {
     ...input,
@@ -273,9 +295,9 @@ export async function sendRequest(
         agencyId,
       })),
     ],
-    createdAt:       now,
-    createdByUserId: session?.userId   ?? 'unknown',
-    createdByName:   session?.userName ?? 'Inconnu',
+    createdAt: now,
+    createdByUserId,
+    createdByName,
   }
 
   if (USE_SUPABASE) {

@@ -2,13 +2,12 @@ import {
   getAllRequests, getRequestById, updateRequest,
   addTransferToRequest, lockRequestAfterConfirmation, confirmByAssisteur,
 } from '@/services/requestService'
-import { MOCK_RENTAL_AGENCIES, CURRENT_LOUEUR_AGENCY_IDS } from '@/data/mockRentalAgencies'
-import { MOCK_RENTAL_BRANDS, CURRENT_BRAND_ID }            from '@/data/mockRentalBrands'
-import { calculateDistance }   from '@/lib/distance'
-import type { AssistanceRequest } from '@/types/request'
+import { getMyAgencies, type RentalAgencyRow } from '@/services/rentalAgencyService'
+import { MOCK_RENTAL_AGENCIES }    from '@/data/mockRentalAgencies'
+import { calculateDistance }       from '@/lib/distance'
+import type { AssistanceRequest }  from '@/types/request'
 import type { ReceivedRequest, LoueurAction } from '@/types/loueur'
-import type { RentalAgency }   from '@/types/rentalAgency'
-import type { RentalBrand }    from '@/types/rentalBrand'
+import type { RentalAgency }       from '@/types/rentalAgency'
 import type { RequestTimelineEvent } from '@/types/requestTimeline'
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -17,53 +16,98 @@ function generateEvtId(): string {
   return `evt-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`
 }
 
-function currentAgencies() {
-  return MOCK_RENTAL_AGENCIES.filter(a => CURRENT_LOUEUR_AGENCY_IDS.includes(a.id))
+/** Clé utilisée pour référencer l'agence dans les demandes : external_id si défini, sinon UUID Supabase */
+function agencyKey(row: RentalAgencyRow): string {
+  return row.external_id ?? row.id
 }
 
-function toReceivedRequest(request: AssistanceRequest): ReceivedRequest | null {
-  const agency = currentAgencies().find(a =>
-    a.id === request.assignedAgencyId ||
-    request.assignedAgencyIds?.includes(a.id)
+/** Trouve l'agence du loueur qui correspond à une demande (par id UUID ou external_id) */
+function findMatchingAgency(
+  request:  AssistanceRequest,
+  agencies: RentalAgencyRow[],
+): RentalAgencyRow | undefined {
+  const ids = new Set([
+    ...(request.assignedAgencyIds ?? []),
+    ...(request.assignedAgencyId ? [request.assignedAgencyId] : []),
+  ])
+  return agencies.find(a =>
+    ids.has(a.id) || (a.external_id !== null && ids.has(a.external_id))
   )
-  if (!agency) return null
-
-  const distanceKm = request.location.latitude && request.location.longitude
-    ? calculateDistance(
-        agency.latitude, agency.longitude,
-        request.location.latitude, request.location.longitude,
-      )
-    : 0
-
-  return { ...request, distanceKm, agencyId: agency.id }
 }
 
-export async function getReceivedRequests(): Promise<ReceivedRequest[]> {
+function buildReceivedRequest(
+  request: AssistanceRequest,
+  agency:  RentalAgencyRow,
+): ReceivedRequest {
+  const distanceKm =
+    request.location.latitude && request.location.longitude && agency.lat && agency.lng
+      ? calculateDistance(
+          agency.lat, agency.lng,
+          request.location.latitude, request.location.longitude,
+        )
+      : 0
+  return { ...request, distanceKm, agencyId: agencyKey(agency) }
+}
+
+function rowToRentalAgency(row: RentalAgencyRow): RentalAgency {
+  return {
+    id:              agencyKey(row),
+    brandId:         '',
+    name:            row.agency_name,
+    address:         row.address ?? '',
+    city:            row.city ?? '',
+    postalCode:      row.postal_code ?? '',
+    latitude:        row.lat ?? 0,
+    longitude:       row.lng ?? 0,
+    serviceRadiusKm: row.service_radius_km ?? 0,
+    phone:           row.phone ?? '',
+    email:           row.email ?? '',
+    contactName:     row.contact_name ?? '',
+    isAvailable:     row.is_available,
+    openingHours: {
+      weekdays: row.opening_hours_weekdays ?? '',
+      saturday: row.opening_hours_saturday,
+      sunday:   row.opening_hours_sunday,
+    },
+  }
+}
+
+/**
+ * Demandes assignées aux agences du loueur.
+ * Prend les agences en paramètre pour éviter un double appel quand le dashboard les a déjà.
+ */
+export async function getReceivedRequests(agencies: RentalAgencyRow[]): Promise<ReceivedRequest[]> {
+  if (agencies.length === 0) return []
   const allRequests = await getAllRequests()
   return allRequests.flatMap(r => {
-    const rr = toReceivedRequest(r)
-    return rr ? [rr] : []
+    const agency = findMatchingAgency(r, agencies)
+    return agency ? [buildReceivedRequest(r, agency)] : []
   })
 }
 
 export async function getReceivedRequestById(id: string): Promise<ReceivedRequest | null> {
-  const request = await getRequestById(id)
+  const [myAgencies, request] = await Promise.all([getMyAgencies(), getRequestById(id)])
   if (!request) return null
-  return toReceivedRequest(request)
+  const agency = findMatchingAgency(request, myAgencies)
+  return agency ? buildReceivedRequest(request, agency) : null
 }
 
 export async function respondToRequest(
   requestId: string,
-  action: LoueurAction,
+  action:    LoueurAction,
 ): Promise<AssistanceRequest | null> {
-  await delay(600)
+  const [myAgencies, request] = await Promise.all([getMyAgencies(), getRequestById(requestId)])
+  if (!request) return null
+
+  const agency = findMatchingAgency(request, myAgencies)
+  const aKey   = agency ? agencyKey(agency) : ''
+  const aName  = agency?.agency_name ?? ''
 
   if (action.type === 'transferer') {
     if (!action.toAgencyId || !action.toAgencyName) return null
-    const agency = currentAgencies()[0]
     return addTransferToRequest(requestId, {
-      fromAgencyId:   agency?.id   ?? CURRENT_LOUEUR_AGENCY_IDS[0],
-      fromAgencyName: agency?.name ?? 'Agence',
+      fromAgencyId:   aKey,
+      fromAgencyName: aName,
       toAgencyId:     action.toAgencyId,
       toAgencyName:   action.toAgencyName,
       reason:         action.message,
@@ -73,22 +117,16 @@ export async function respondToRequest(
   }
 
   if (action.type === 'accepter') {
-    const brand      = MOCK_RENTAL_BRANDS.find(b => b.id === CURRENT_BRAND_ID)
-    const agency     = currentAgencies()[0]
-    const agencyId   = agency?.id   ?? CURRENT_LOUEUR_AGENCY_IDS[0]
-    const agencyName = agency?.name ?? brand?.name ?? 'Loueur'
-
     const loueurResponse = {
-      agencyId,
-      agencyName,
+      agencyId:     aKey,
+      agencyName:   aName,
       pricePerDay:  action.pricePerDay,
       vehicleModel: action.vehicleModel,
       message:      action.message,
       respondedAt:  new Date(),
     }
-
     const { request: accepted } = await lockRequestAfterConfirmation(
-      requestId, agencyId, agencyName, loueurResponse,
+      requestId, aKey, aName, loueurResponse,
     )
     if (!accepted) return null
     const confirmed = await confirmByAssisteur(requestId)
@@ -96,20 +134,15 @@ export async function respondToRequest(
   }
 
   if (action.type === 'refuser') {
-    const agency = currentAgencies()[0]
-    const request = await getRequestById(requestId)
-    if (!request) return null
-
     const evt: RequestTimelineEvent = {
       id: generateEvtId(), type: 'refus', at: new Date(), byRole: 'loueur',
-      agencyId: agency?.id, message: action.message,
+      agencyId: aKey, message: action.message,
     }
-
     return updateRequest(requestId, {
       status: 'refusee',
       loueurResponse: {
-        agencyId:    agency?.id ?? CURRENT_LOUEUR_AGENCY_IDS[0],
-        agencyName:  agency?.name ?? 'Loueur',
+        agencyId:    aKey,
+        agencyName:  aName,
         message:     action.message,
         respondedAt: new Date(),
       },
@@ -120,35 +153,32 @@ export async function respondToRequest(
   return null
 }
 
-export async function getCurrentBrand(): Promise<RentalBrand | null> {
-  await delay(200)
-  return MOCK_RENTAL_BRANDS.find(b => b.id === CURRENT_BRAND_ID) ?? null
-}
-
 export async function getCurrentAgencies(): Promise<RentalAgency[]> {
-  await delay(200)
-  return currentAgencies()
+  const rows = await getMyAgencies()
+  return rows.map(rowToRentalAgency)
 }
 
+/** Utilisé par la page assisteur pour afficher les détails d'une agence loueur. */
 export async function getRentalAgencyById(id: string): Promise<RentalAgency | null> {
   await delay(150)
   return MOCK_RENTAL_AGENCIES.find(a => a.id === id) ?? null
 }
 
-export async function getNearbyAgenciesForTransfer(
-  requestId: string,
-): Promise<RentalAgency[]> {
-  await delay(200)
-  const request = await getRequestById(requestId)
+export async function getNearbyAgenciesForTransfer(requestId: string): Promise<RentalAgency[]> {
+  const [myAgencies, request] = await Promise.all([getMyAgencies(), getRequestById(requestId)])
   if (!request) return []
 
-  return MOCK_RENTAL_AGENCIES.filter(a =>
-    !CURRENT_LOUEUR_AGENCY_IDS.includes(a.id) && a.isAvailable
-  ).map(a => ({
-    ...a,
-    distanceKm: calculateDistance(
-      a.latitude, a.longitude,
-      request.location.latitude, request.location.longitude,
-    ),
-  }))
+  const myKeys = new Set(
+    myAgencies.flatMap(a => [a.id, ...(a.external_id ? [a.external_id] : [])])
+  )
+
+  return MOCK_RENTAL_AGENCIES
+    .filter(a => !myKeys.has(a.id) && a.isAvailable)
+    .map(a => ({
+      ...a,
+      distanceKm: calculateDistance(
+        a.latitude, a.longitude,
+        request.location.latitude, request.location.longitude,
+      ),
+    }))
 }

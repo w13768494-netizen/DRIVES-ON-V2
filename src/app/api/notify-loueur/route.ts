@@ -1,12 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient }             from '@supabase/supabase-js'
-import { MOCK_RENTAL_AGENCIES }     from '@/data/mockRentalAgencies'
-import { VEHICLE_CATEGORY_LABELS }  from '@/types/vehicleCategory'
-import { sendEmail }                from '@/lib/email'
-import { buildLoueurEmailHtml }     from '@/lib/loueurEmail'
-import type { AssistanceRequest }   from '@/types/request'
+import { NextRequest, NextResponse }              from 'next/server'
+import { createClient }                           from '@supabase/supabase-js'
+import { createClient as createServerClient }     from '@/lib/supabase/server'
+import { MOCK_RENTAL_AGENCIES }                   from '@/data/mockRentalAgencies'
+import { VEHICLE_CATEGORY_LABELS }                from '@/types/vehicleCategory'
+import { sendEmail }                              from '@/lib/email'
+import { buildLoueurEmailHtml }                   from '@/lib/loueurEmail'
+import type { AssistanceRequest }                 from '@/types/request'
 
-// Client admin (service_role) — server-side uniquement, jamais exposé au client
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -16,8 +16,26 @@ const supabaseAdmin = createClient(
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
 export async function POST(req: NextRequest) {
-  let request: AssistanceRequest
+  // Auth : réservé aux assisteurs et admins
+  const supabase = await createServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
+  if (!user) {
+    return NextResponse.json({ ok: false, error: 'Non authentifié' }, { status: 401 })
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile || !(['assisteur', 'admin'] as string[]).includes(profile.role)) {
+    return NextResponse.json({ ok: false, error: 'Accès non autorisé' }, { status: 403 })
+  }
+
+  // Corps de la requête
+  let request: AssistanceRequest
   try {
     const body = await req.json()
     request = body.request
@@ -25,7 +43,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 })
   }
 
-  // Agences uniques ciblées
   const agencyIds = [
     ...(request.assignedAgencyIds ?? []),
     ...(request.assignedAgencyId ? [request.assignedAgencyId] : []),
@@ -35,6 +52,9 @@ export async function POST(req: NextRequest) {
   const address      = request.location.address
 
   console.log(`[notify-loueur] demande ${request.id} → ${agencyIds.length} agence(s)`)
+
+  let emailsSent   = 0
+  let emailsFailed = 0
 
   for (const agencyId of agencyIds) {
     const agency = MOCK_RENTAL_AGENCIES.find(a => a.id === agencyId)
@@ -52,21 +72,19 @@ export async function POST(req: NextRequest) {
 
     if (notifErr) {
       console.error(`[notify-loueur] notif Supabase échouée pour ${agencyId}:`, notifErr.message)
-    } else {
-      console.log(`[notify-loueur] notif créée pour ${agencyId}`)
     }
 
-    // ── 2. Email (best-effort, indépendant de la notif) ──────────────────────
+    // ── 2. Email (awaité — l'échec est loggé et compté) ──────────────────────
     if (agency?.email) {
-      const requestUrl = `${APP_URL}/loueur/demandes/${request.id}`
-      sendEmail({
+      const requestUrl  = `${APP_URL}/loueur/demandes/${request.id}`
+      const emailResult = await sendEmail({
         to:      agency.email,
         subject: request.requestType === 'immediate'
           ? `⚡ Demande immédiate DRIVES ON — ${vehicleLabel}`
           : `Nouvelle demande DRIVES ON — ${vehicleLabel}`,
         html: buildLoueurEmailHtml({
-          agencyName:    agency.name,
-          dossierNumber: request.dossierNumber,
+          agencyName:       agency.name,
+          dossierNumber:    request.dossierNumber,
           address,
           vehicleLabel,
           durationDays:     request.durationDays,
@@ -79,12 +97,19 @@ export async function POST(req: NextRequest) {
           requestUrl,
         }),
       })
-        .then(() => console.log(`[notify-loueur] email envoyé à ${agency.email}`))
-        .catch(err => console.error(`[notify-loueur] email échoué pour ${agency.email}:`, err))
+
+      if (emailResult.ok) {
+        console.log(`[notify-loueur] email envoyé → ${agency.email}`)
+        emailsSent++
+      } else {
+        console.error(`[notify-loueur] email FAILED → ${agency.email} : ${emailResult.error}`)
+        emailsFailed++
+      }
     } else {
-      console.log(`[notify-loueur] pas d'email pour ${agencyId} (agence inconnue ou sans email)`)
+      console.log(`[notify-loueur] agence ${agencyId} sans email — notification plateforme uniquement`)
     }
   }
 
-  return NextResponse.json({ ok: true })
+  console.log(`[notify-loueur] terminé — ${emailsSent} envoyé(s), ${emailsFailed} échec(s)`)
+  return NextResponse.json({ ok: true, emailsSent, emailsFailed })
 }
