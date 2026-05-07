@@ -1,9 +1,47 @@
 import { MOCK_RENTAL_AGENCIES, CURRENT_LOUEUR_AGENCY_IDS } from '@/data/mockRentalAgencies'
 import { MOCK_AGENCY_SERVICES } from '@/data/mockAgencyServices'
 import { MOCK_VEHICLE_CATEGORY_OFFERS } from '@/data/mockVehicleCategoryOffers'
-import type { RentalAgency } from '@/types/rentalAgency'
-import type { AgencyService } from '@/types/agencyService'
-import type { VehicleCategoryOffer } from '@/types/vehicleCategory'
+import { getAgencyServices }           from '@/services/agencyServicesService'
+import { getAgencyVehicleCategories }  from '@/services/agencyVehicleCategoriesService'
+import type { AgencyServiceRow }       from '@/services/agencyServicesService'
+import type { AgencyVehicleCategoryRow } from '@/services/agencyVehicleCategoriesService'
+import type { RentalAgency }           from '@/types/rentalAgency'
+import type { AgencyService }          from '@/types/agencyService'
+import type { VehicleCategoryOffer }   from '@/types/vehicleCategory'
+
+const USE_SUPABASE =
+  typeof process.env.NEXT_PUBLIC_SUPABASE_URL === 'string' &&
+  process.env.NEXT_PUBLIC_SUPABASE_URL.startsWith('https://') &&
+  !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('VOTRE')
+
+function rowToService(row: AgencyServiceRow): AgencyService {
+  return {
+    id:        row.id,
+    agencyId:  row.agency_id,
+    type:      row.type,
+    label:     row.label    ?? undefined,
+    available: row.available,
+    priceType: row.price_type,
+    price:     row.price    ?? undefined,
+    comment:   row.comment  ?? undefined,
+  }
+}
+
+function rowToCategoryOffer(row: AgencyVehicleCategoryRow): VehicleCategoryOffer {
+  return {
+    id:               row.id,
+    agencyId:         row.agency_id,
+    category:         row.category,
+    group:            row.group_type,
+    available:        row.available,
+    stockEstimate:    row.stock_estimate,
+    dailyRate:        row.daily_rate,
+    packages:         row.packages ?? [],
+    deposit:          row.deposit,
+    includedKmPerDay: row.included_km_per_day,
+    extraKmPrice:     row.extra_km_price,
+  }
+}
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -67,6 +105,10 @@ export async function deleteAgency(id: string): Promise<void> {
 // ── Services ──────────────────────────────────────────────────────────────────
 
 export async function getServicesByAgency(agencyId: string): Promise<AgencyService[]> {
+  if (USE_SUPABASE) {
+    const rows = await getAgencyServices(agencyId)
+    return rows.map(rowToService)
+  }
   await delay(200)
   return MOCK_AGENCY_SERVICES.filter(s => s.agencyId === agencyId)
 }
@@ -101,6 +143,10 @@ export async function deleteService(serviceId: string): Promise<void> {
 // ── Catégories de véhicules ───────────────────────────────────────────────────
 
 export async function getCategoryOffersByAgency(agencyId: string): Promise<VehicleCategoryOffer[]> {
+  if (USE_SUPABASE) {
+    const rows = await getAgencyVehicleCategories(agencyId)
+    return rows.map(rowToCategoryOffer)
+  }
   await delay(200)
   return MOCK_VEHICLE_CATEGORY_OFFERS.filter(o => o.agencyId === agencyId)
 }

@@ -1,9 +1,16 @@
 import { MOCK_RENTAL_COMPANIES } from '@/data/mockRentalCompanies'
 import { calculateDistance, sortByDistance } from '@/lib/distance'
-import type { RentalCompany } from '@/types/rentalCompany'
+import { supabase }               from '@/lib/supabaseClient'
+import type { RentalCompany }     from '@/types/rentalCompany'
 import type { VehicleCategoryType } from '@/types/vehicleCategory'
+import type { RentalAgencyRow }   from '@/services/rentalAgencyService'
 
 const SIMULATED_LATENCY_MS = 900
+
+const USE_SUPABASE =
+  typeof process.env.NEXT_PUBLIC_SUPABASE_URL === 'string' &&
+  process.env.NEXT_PUBLIC_SUPABASE_URL.startsWith('https://') &&
+  !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('VOTRE')
 
 export interface GetNearbyCompaniesParams {
   latitude:         number
@@ -31,6 +38,31 @@ export async function getNearbyRentalCompanies(
 }
 
 export async function getRentalCompanyById(id: string): Promise<RentalCompany | null> {
+  if (USE_SUPABASE) {
+    const { data, error } = await supabase
+      .from('rental_agencies')
+      .select('*')
+      .eq('id', id)
+      .eq('active', true)
+      .maybeSingle()
+
+    if (!error && data) {
+      const row = data as RentalAgencyRow
+      return {
+        id:           row.id,
+        name:         row.agency_name,
+        address:      row.address ?? '',
+        city:         row.city    ?? '',
+        latitude:     row.lat     ?? 0,
+        longitude:    row.lng     ?? 0,
+        vehicleTypes: [],
+        basePrices:   {},
+        phone:        row.phone   ?? '',
+        fleetSize:    0,
+      }
+    }
+  }
+  // Fallback mock (IDs legacy ou Supabase indisponible)
   await new Promise(resolve => setTimeout(resolve, 200))
   return MOCK_RENTAL_COMPANIES.find(c => c.id === id) ?? null
 }
