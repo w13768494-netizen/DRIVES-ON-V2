@@ -47,7 +47,7 @@ export function AccessRequestForm() {
     })
 
     if (err) {
-      setError('Une erreur est survenue. Veuillez réessayer.')
+      setError(err.message)
       setLoading(false)
       return
     }

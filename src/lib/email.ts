@@ -7,8 +7,8 @@ export async function sendEmail(params: {
   to:      string
   subject: string
   html:    string
-}): Promise<void> {
-  if (!POSTMARK_KEY) return  // silencieux si clé non configurée
+}): Promise<{ ok: boolean; error?: string }> {
+  if (!POSTMARK_KEY) return { ok: false, error: 'POSTMARK_API_KEY non configurée' }
 
   try {
     const res = await fetch('https://api.postmarkapp.com/email', {
@@ -29,8 +29,12 @@ export async function sendEmail(params: {
     if (!res.ok) {
       const body = await res.text()
       console.error('[email] Postmark error', res.status, body)
+      return { ok: false, error: `Postmark ${res.status}: ${body}` }
     }
+    return { ok: true }
   } catch (err) {
-    console.error('[email] Failed to send to', params.to, err)
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[email] Failed to send to', params.to, msg)
+    return { ok: false, error: msg }
   }
 }
