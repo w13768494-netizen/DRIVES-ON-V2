@@ -38,7 +38,12 @@ export async function POST(request: NextRequest) {
     },
   })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (error) {
+    if (error.message.toLowerCase().includes('already been registered')) {
+      return NextResponse.json({ error: 'USER_ALREADY_EXISTS' }, { status: 409 })
+    }
+    return NextResponse.json({ error: error.message }, { status: 400 })
+  }
 
   const inviteLink =
     `${origin}/auth/callback` +

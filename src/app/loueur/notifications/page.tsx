@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell, CheckCheck, FileText, Loader2 } from 'lucide-react'
 import { getNotifications, markAsRead, markAllAsRead } from '@/services/notificationService'
-import { CURRENT_LOUEUR_AGENCY_IDS } from '@/data/mockRentalAgencies'
 import type { PlatformNotification } from '@/services/notificationService'
 
 export default function LoueurNotificationsPage() {
@@ -14,7 +13,7 @@ export default function LoueurNotificationsPage() {
   const router = useRouter()
 
   const load = useCallback(async () => {
-    const data = await getNotifications(CURRENT_LOUEUR_AGENCY_IDS)
+    const data = await getNotifications()
     setNotifs(data)
     setLoading(false)
   }, [])
@@ -39,7 +38,7 @@ export default function LoueurNotificationsPage() {
 
   async function handleMarkAll() {
     setMarking(true)
-    await markAllAsRead(CURRENT_LOUEUR_AGENCY_IDS)
+    await markAllAsRead()
     setNotifs(prev => prev.map(n => ({ ...n, readAt: n.readAt ?? new Date() })))
     setMarking(false)
   }

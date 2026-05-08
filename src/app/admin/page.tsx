@@ -8,28 +8,31 @@ import {
 } from 'lucide-react'
 import { getAllRequests }       from '@/services/requestService'
 import { getAllUsers }          from '@/services/assistanceUserService'
-import { getAllLoueurAccounts } from '@/services/loueurAccountService'
 import { getCandidatures }     from '@/services/candidatureService'
 import { getDisplayStatus }    from '@/lib/displayStatus'
 import type { AssistanceRequest } from '@/types/request'
 import type { AssistanceUser }    from '@/types/assistanceUser'
-import type { LoueurAccount }     from '@/types/loueurAccount'
 import type { Candidature }       from '@/types/candidature'
+import type { AdminAgency }       from '@/app/api/admin/agencies/route'
 
 export default function AdminPlatformPage() {
   const [requests,    setRequests]    = useState<AssistanceRequest[]>([])
   const [users,       setUsers]       = useState<AssistanceUser[]>([])
-  const [loueurs,     setLoueurs]     = useState<LoueurAccount[]>([])
+  const [agencies,    setAgencies]    = useState<AdminAgency[]>([])
   const [candidatures,setCandidatures]= useState<Candidature[]>([])
   const [loading,     setLoading]     = useState(true)
   const [refreshedAt, setRefreshedAt] = useState(new Date())
 
   async function load() {
     setLoading(true)
-    const [reqs, cands] = await Promise.all([getAllRequests(), getCandidatures()])
+    const [reqs, cands, agencyRes] = await Promise.all([
+      getAllRequests(),
+      getCandidatures(),
+      fetch('/api/admin/agencies').then(r => r.json()).catch(() => []) as Promise<AdminAgency[]>,
+    ])
     setRequests(reqs)
     setUsers(getAllUsers())
-    setLoueurs(getAllLoueurAccounts())
+    setAgencies(agencyRes)
     setCandidatures(cands)
     setRefreshedAt(new Date())
     setLoading(false)
@@ -59,7 +62,7 @@ export default function AdminPlatformPage() {
   const tauxConfirmation= totalReqs > 0 ? Math.round((confirmed.length / totalReqs) * 100) : 0
 
   const activeUsers     = users.filter(u => u.active !== false).length
-  const activeLoueurs   = loueurs.filter(l => l.active).length
+  const activeLoueurs   = agencies.filter(a => a.is_available).length
   const pendingCands    = candidatures.filter(c => c.status === 'en_attente').length
 
   const recent = [...requests]
@@ -128,7 +131,7 @@ export default function AdminPlatformPage() {
           icon={<Building2 className="w-5 h-5" />}
           label="Loueurs actifs"
           value={activeLoueurs}
-          sub={`${loueurs.length} comptes total`}
+          sub={`${agencies.length} agence${agencies.length !== 1 ? 's' : ''} total`}
           color="violet"
           loading={loading}
         />

@@ -58,10 +58,26 @@ export default function DemandesAccesPage() {
     if (res.ok) {
       setFeedback(f => ({ ...f, [req.id]: 'Invitation envoyée ✓' }))
       setTimeout(load, 1500)
+    } else if (res.status === 409) {
+      setFeedback(f => ({ ...f, [req.id]: '__EXISTS__' }))
     } else {
       setFeedback(f => ({ ...f, [req.id]: json.error ?? 'Erreur' }))
     }
     setInviting(null)
+  }
+
+  async function sendReset(req: AccessRequest) {
+    const res = await fetch('/api/admin/send-reset', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email: req.email, full_name: req.full_name }),
+    })
+    if (res.ok) {
+      setFeedback(f => ({ ...f, [req.id]: 'Lien de connexion envoyé ✓' }))
+    } else {
+      const json = await res.json()
+      setFeedback(f => ({ ...f, [req.id]: json.error ?? 'Erreur' }))
+    }
   }
 
   async function reject(req: AccessRequest) {
@@ -161,9 +177,21 @@ export default function DemandesAccesPage() {
                   )}
 
                   {/* Feedback inline */}
-                  {feedback[req.id] && (
+                  {feedback[req.id] && feedback[req.id] !== '__EXISTS__' && (
                     <p className={`text-xs font-medium ${feedback[req.id].includes('✓') ? 'text-green-600' : 'text-red-500'}`}>
                       {feedback[req.id]}
+                    </p>
+                  )}
+                  {feedback[req.id] === '__EXISTS__' && (
+                    <p className="text-xs text-amber-600 font-medium">
+                      Ce compte existe déjà —{' '}
+                      <button
+                        type="button"
+                        onClick={() => sendReset(req)}
+                        className="underline underline-offset-2 font-semibold hover:text-amber-800"
+                      >
+                        Renvoyer un lien
+                      </button>
                     </p>
                   )}
                 </div>

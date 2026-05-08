@@ -14,6 +14,7 @@ export interface PlatformNotification {
 interface DbNotif {
   id:         string
   agency_id:  string
+  user_id:    string | null
   type:       string
   title:      string
   body:       string
@@ -35,22 +36,22 @@ function rowToNotif(row: DbNotif): PlatformNotification {
   }
 }
 
-export async function getNotifications(agencyIds: string[]): Promise<PlatformNotification[]> {
+// RLS filters automatically to user_id = auth.uid() — no agencyIds param needed.
+
+export async function getNotifications(): Promise<PlatformNotification[]> {
   const { data, error } = await supabase
     .from('notifications')
     .select('*')
-    .in('agency_id', agencyIds)
     .order('created_at', { ascending: false })
     .limit(50)
   if (error || !data) return []
   return (data as DbNotif[]).map(rowToNotif)
 }
 
-export async function getUnreadCount(agencyIds: string[]): Promise<number> {
+export async function getUnreadCount(): Promise<number> {
   const { count, error } = await supabase
     .from('notifications')
     .select('*', { count: 'exact', head: true })
-    .in('agency_id', agencyIds)
     .is('read_at', null)
   return !error && count ? count : 0
 }
@@ -63,10 +64,9 @@ export async function markAsRead(id: string): Promise<void> {
     .is('read_at', null)
 }
 
-export async function markAllAsRead(agencyIds: string[]): Promise<void> {
+export async function markAllAsRead(): Promise<void> {
   await supabase
     .from('notifications')
     .update({ read_at: new Date().toISOString() })
-    .in('agency_id', agencyIds)
     .is('read_at', null)
 }

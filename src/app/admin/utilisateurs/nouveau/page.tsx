@@ -21,6 +21,9 @@ export default function NouveauPartenairePage() {
   const [loading, setLoading]         = useState(false)
   const [error, setError]             = useState<string | null>(null)
   const [done, setDone]               = useState(false)
+  const [userExists, setUserExists]   = useState(false)
+  const [resetting, setResetting]     = useState(false)
+  const [resetSent, setResetSent]     = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -33,6 +36,7 @@ export default function NouveauPartenairePage() {
       body:    JSON.stringify({ email: email.trim(), role, full_name: fullName.trim(), company_name: companyName.trim() || null }),
     })
     const json = await res.json()
+    if (res.status === 409) { setUserExists(true); setLoading(false); return }
     if (!res.ok) { setError(json.error ?? 'Erreur lors de l\'invitation.'); setLoading(false); return }
     setDone(true)
     setLoading(false)
@@ -133,7 +137,7 @@ export default function NouveauPartenairePage() {
           <input
             type="email"
             value={email}
-            onChange={e => { setEmail(e.target.value); setError(null) }}
+            onChange={e => { setEmail(e.target.value); setError(null); setUserExists(false); setResetSent(false) }}
             placeholder="Email professionnel *"
             className={inputCls}
             autoComplete="off"
@@ -141,6 +145,42 @@ export default function NouveauPartenairePage() {
           />
         </div>
 
+        {userExists && !resetSent && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col gap-3">
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Ce compte existe déjà</p>
+              <p className="text-xs text-amber-600 mt-0.5">
+                Un utilisateur est déjà enregistré avec <strong>{email}</strong>.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                setResetting(true)
+                const r = await fetch('/api/admin/send-reset', {
+                  method:  'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body:    JSON.stringify({ email: email.trim(), full_name: fullName.trim() }),
+                })
+                setResetting(false)
+                if (r.ok) { setResetSent(true) }
+                else { const j = await r.json(); setError(j.error ?? 'Erreur lors de l\'envoi.') }
+              }}
+              disabled={resetting}
+              className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-semibold text-sm transition-colors"
+            >
+              {resetting
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Envoi en cours…</>
+                : 'Renvoyer un lien de connexion'
+              }
+            </button>
+          </div>
+        )}
+        {resetSent && (
+          <p className="text-xs text-green-600 font-medium">
+            Lien envoyé à {email} ✓
+          </p>
+        )}
         {error && <p className="text-xs text-red-500">{error}</p>}
 
         <p className="text-xs text-slate-400">

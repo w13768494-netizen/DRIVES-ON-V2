@@ -12,7 +12,6 @@ import {
 import { getSession } from '@/services/currentSessionService'
 import { signOut }    from '@/services/authService'
 import { getUnreadCount } from '@/services/notificationService'
-import { CURRENT_LOUEUR_AGENCY_IDS } from '@/data/mockRentalAgencies'
 import { ASSISTANCE_USER_ROLE_LABELS, ASSISTANCE_USER_ROLE_COLORS } from '@/types/assistanceUser'
 import type { MockSession } from '@/types/session'
 
@@ -74,7 +73,7 @@ export function SidebarShell({ role, children }: Props) {
   // Polling notifications toutes les 30s (loueur uniquement)
   useEffect(() => {
     if (role !== 'loueur') return
-    const load = () => getUnreadCount(CURRENT_LOUEUR_AGENCY_IDS).then(setUnreadCount)
+    const load = () => getUnreadCount().then(setUnreadCount)
     load()
     const id = setInterval(load, 30_000)
     return () => clearInterval(id)

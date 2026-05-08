@@ -59,11 +59,19 @@ export async function POST(req: NextRequest) {
   for (const agencyId of agencyIds) {
     const agency = MOCK_RENTAL_AGENCIES.find(a => a.id === agencyId)
 
+    // Lookup owner_id from Supabase to bind notification to the real loueur user
+    const { data: agencyRow } = await supabaseAdmin
+      .from('rental_agencies')
+      .select('owner_id')
+      .eq('id', agencyId)
+      .maybeSingle()
+
     // ── 1. Notification plateforme (Supabase) ────────────────────────────────
     const notifId = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
     const { error: notifErr } = await supabaseAdmin.from('notifications').insert({
       id:         notifId,
       agency_id:  agencyId,
+      user_id:    agencyRow?.owner_id ?? null,
       type:       'new_request',
       title:      `Nouvelle demande — ${address}`,
       body:       `${vehicleLabel} · ${request.durationDays}j`,

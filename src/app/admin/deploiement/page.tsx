@@ -8,14 +8,12 @@ import {
   Building2, Check, X, ExternalLink,
 } from 'lucide-react'
 import { getAllDeploymentCities, updateDeploymentCityStatus } from '@/services/deploymentService'
-import { MOCK_RENTAL_AGENCIES }  from '@/data/mockRentalAgencies'
-import { MOCK_RENTAL_COMPANIES } from '@/data/mockRentalCompanies'
-import { MOCK_AGENCY_SERVICES }  from '@/data/mockAgencyServices'
 import { VEHICLE_CATEGORY_LABELS, VEHICLE_CATEGORY_GROUPS } from '@/types/vehicleCategory'
 import { AGENCY_SERVICE_LABELS }                            from '@/types/agencyService'
 import type { DeploymentCity, DeploymentStatus }            from '@/types/deploymentCity'
 import type { VehicleCategoryType }                         from '@/types/vehicleCategory'
 import type { AgencyServiceType }                           from '@/types/agencyService'
+import type { AdminAgency }                                 from '@/app/api/admin/agencies/route'
 
 // ── Statuts ───────────────────────────────────────────────────────────────────
 
@@ -48,32 +46,6 @@ function getActions(status: DeploymentStatus): StatusAction[] {
   }
 }
 
-// ── Calcul des données opérationnelles par ville ──────────────────────────────
-
-function buildCityDetail(cityId: string) {
-  const agencies  = MOCK_RENTAL_AGENCIES.filter(a => a.cityId === cityId)
-  const companies = MOCK_RENTAL_COMPANIES.filter(c => c.cityId === cityId)
-
-  const allTypes       = [...new Set(companies.flatMap(c => c.vehicleTypes))] as VehicleCategoryType[]
-  const tourismeCats   = allTypes.filter(t => VEHICLE_CATEGORY_GROUPS[t] === 'tourisme')
-  const utilitaireCats = allTypes.filter(t => VEHICLE_CATEGORY_GROUPS[t] === 'utilitaire')
-
-  const agencyIds = agencies.map(a => a.id)
-  const services  = MOCK_AGENCY_SERVICES.filter(s => agencyIds.includes(s.agencyId))
-
-  // Par type de service : available = true dès qu'une agence le propose
-  const serviceMap = new Map<AgencyServiceType, boolean>()
-  for (const svc of services) {
-    serviceMap.set(svc.type, (serviceMap.get(svc.type) ?? false) || svc.available)
-  }
-
-  const avgRadius = agencies.length > 0
-    ? Math.round(agencies.reduce((s, a) => s + a.serviceRadiusKm, 0) / agencies.length)
-    : null
-
-  return { agencies, companies, tourismeCats, utilitaireCats, serviceMap, avgRadius }
-}
-
 // ── Composant principal ───────────────────────────────────────────────────────
 
 export default function DeploiementPage() {
@@ -84,9 +56,26 @@ export default function DeploiementPage() {
   const [openCities,  setOpenCities]  = useState<Set<string>>(new Set())
 
   const load = useCallback(async () => {
-    const data = await getAllDeploymentCities()
-    setCities(data)
-    setOpenRegions(new Set(data.map(c => c.region)))
+    const [cityData, agencyRes] = await Promise.all([
+      getAllDeploymentCities(),
+      fetch('/api/admin/agencies').then(r => r.json()).catch(() => []) as Promise<AdminAgency[]>,
+    ])
+
+    // Compute real loueur counts per city (match by city name)
+    const countByCity = new Map<string, number>()
+    for (const a of agencyRes) {
+      if (!a.city) continue
+      const key = a.city.toLowerCase().trim()
+      countByCity.set(key, (countByCity.get(key) ?? 0) + 1)
+    }
+
+    const enriched = cityData.map(c => ({
+      ...c,
+      loueurCount: countByCity.get(c.name.toLowerCase().trim()) ?? 0,
+    }))
+
+    setCities(enriched)
+    setOpenRegions(new Set(enriched.map(c => c.region)))
     setLoading(false)
   }, [])
 
@@ -288,61 +277,73 @@ export default function DeploiementPage() {
   )
 }
 
-// ── Panneau détail d'une ville ────────────────────────────────────────────────
+// ── Panneau détail d'une ville (données Supabase) ────────────────────────────
 
 function CityDetailPanel({ city }: { city: DeploymentCity }) {
-  const { agencies, companies, tourismeCats, utilitaireCats, serviceMap, avgRadius } = buildCityDetail(city.id)
+  const [agencies,     setAgencies]     = useState<AdminAgency[]>([])
+  const [panelLoading, setPanelLoading] = useState(true)
   const cfg = STATUS_CONFIG[city.status]
+
+  useEffect(() => {
+    fetch(`/api/admin/agencies?city=${encodeURIComponent(city.name)}`)
+      .then(r => r.json())
+      .then((data: AdminAgency[]) => { setAgencies(data); setPanelLoading(false) })
+      .catch(() => setPanelLoading(false))
+  }, [city.name])
+
+  // Dériver couverture véhicules depuis les catégories des agences
+  const allCats        = agencies.flatMap(a => a.categories)
+  const availableCats  = [...new Set(allCats.filter(c => c.available).map(c => c.category))] as VehicleCategoryType[]
+  const tourismeCats   = availableCats.filter(t => VEHICLE_CATEGORY_GROUPS[t] === 'tourisme')
+  const utilitaireCats = availableCats.filter(t => VEHICLE_CATEGORY_GROUPS[t] === 'utilitaire')
+
+  // Dériver services depuis les agences
+  const serviceMap = new Map<AgencyServiceType, boolean>()
+  for (const svc of agencies.flatMap(a => a.services)) {
+    serviceMap.set(svc.type as AgencyServiceType, (serviceMap.get(svc.type as AgencyServiceType) ?? false) || svc.available)
+  }
+
+  const avgRadius = agencies.length > 0
+    ? Math.round(agencies.reduce((s, a) => s + (a.service_radius_km ?? 0), 0) / agencies.length)
+    : null
+
+  if (panelLoading) {
+    return (
+      <div className="bg-slate-50 border-t border-slate-200 px-6 py-10 flex items-center justify-center">
+        <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
+      </div>
+    )
+  }
 
   return (
     <div className="bg-slate-50 border-t border-slate-200 px-6 py-5">
       <div className="grid grid-cols-3 gap-6">
 
-        {/* ── Colonne 1 : Opérateurs ── */}
-        <div className="space-y-4">
-
-          {/* Loueurs enregistrés */}
-          <div>
-            <SectionTitle icon={<Building2 className="w-3.5 h-3.5" />} label="Loueurs enregistrés" />
-            {agencies.length === 0 ? (
-              <EmptyMsg>Aucun loueur rattaché</EmptyMsg>
-            ) : (
-              <div className="space-y-2 mt-2">
-                {agencies.map(a => (
-                  <div key={a.id} className="bg-white border border-slate-200 rounded-xl px-3 py-2.5">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{a.name}</p>
-                    <div className="flex items-center gap-3 mt-1">
-                      {a.email && (
-                        <p className="text-[11px] text-slate-400 truncate">{a.email}</p>
-                      )}
-                      <span className="text-[11px] text-slate-400 shrink-0 ml-auto tabular-nums">{a.serviceRadiusKm} km</span>
-                    </div>
+        {/* ── Colonne 1 : Loueurs ── */}
+        <div>
+          <SectionTitle icon={<Building2 className="w-3.5 h-3.5" />} label="Loueurs enregistrés" />
+          {agencies.length === 0 ? (
+            <EmptyMsg>Aucun loueur rattaché</EmptyMsg>
+          ) : (
+            <div className="space-y-2 mt-2">
+              {agencies.map(a => (
+                <div key={a.id} className="bg-white border border-slate-200 rounded-xl px-3 py-2.5">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{a.agency_name}</p>
+                  <div className="flex items-center gap-3 mt-1">
+                    {a.email && <p className="text-[11px] text-slate-400 truncate">{a.email}</p>}
+                    {a.service_radius_km != null && (
+                      <span className="text-[11px] text-slate-400 shrink-0 ml-auto tabular-nums">{a.service_radius_km} km</span>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Pool matching */}
-          <div>
-            <SectionTitle icon={<Car className="w-3.5 h-3.5" />} label={`Pool matching — ${companies.length} entreprise${companies.length !== 1 ? 's' : ''}`} />
-            {companies.length === 0 ? (
-              <EmptyMsg>Aucune entreprise dans le pool</EmptyMsg>
-            ) : (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {companies.map(c => (
-                  <span key={c.id} className="px-2 py-0.5 bg-white border border-slate-200 rounded-full text-[11px] text-slate-600 font-medium">
-                    {c.name}
-                  </span>
-                ))}
-              </div>
-            )}
-            {avgRadius !== null && (
-              <p className="text-[11px] text-slate-500 mt-2 tabular-nums">
-                Rayon moyen des loueurs enregistrés : <span className="font-semibold text-slate-700">{avgRadius} km</span>
-              </p>
-            )}
-          </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {avgRadius !== null && (
+            <p className="text-[11px] text-slate-500 mt-2 tabular-nums">
+              Rayon moyen : <span className="font-semibold text-slate-700">{avgRadius} km</span>
+            </p>
+          )}
         </div>
 
         {/* ── Colonne 2 : Couverture véhicules ── */}
@@ -354,30 +355,20 @@ function CityDetailPanel({ city }: { city: DeploymentCity }) {
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Tourisme</p>
               {tourismeCats.length > 0 ? (
                 <div className="flex flex-wrap gap-1">
-                  {tourismeCats.map(cat => (
-                    <CategoryBadge key={cat} label={VEHICLE_CATEGORY_LABELS[cat]} color="blue" />
-                  ))}
+                  {tourismeCats.map(cat => <CategoryBadge key={cat} label={VEHICLE_CATEGORY_LABELS[cat]} color="blue" />)}
                 </div>
-              ) : (
-                <EmptyMsg>Non couvert</EmptyMsg>
-              )}
+              ) : <EmptyMsg>Non couvert</EmptyMsg>}
             </div>
-
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Utilitaire</p>
               {utilitaireCats.length > 0 ? (
                 <div className="flex flex-wrap gap-1">
-                  {utilitaireCats.map(cat => (
-                    <CategoryBadge key={cat} label={VEHICLE_CATEGORY_LABELS[cat]} color="amber" />
-                  ))}
+                  {utilitaireCats.map(cat => <CategoryBadge key={cat} label={VEHICLE_CATEGORY_LABELS[cat]} color="amber" />)}
                 </div>
-              ) : (
-                <EmptyMsg>Non couvert</EmptyMsg>
-              )}
+              ) : <EmptyMsg>Non couvert</EmptyMsg>}
             </div>
           </div>
 
-          {/* Statut récap */}
           <div className="pt-2 border-t border-slate-200">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Statut déploiement</p>
             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${cfg.badgeClass}`}>
