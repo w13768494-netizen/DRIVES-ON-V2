@@ -273,9 +273,7 @@ export async function sendRequest(
       ?? user.email
       ?? 'Assisteur'
   } else {
-    const session   = getSession()
-    createdByUserId = session?.userId   ?? 'dev-user'
-    createdByName   = session?.userName ?? 'Dev'
+    throw new Error('Supabase non configuré — impossible de créer une demande.')
   }
 
   const request: AssistanceRequest = {

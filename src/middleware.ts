@@ -1,6 +1,12 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+const ROUTE_ROLES: [prefix: string, role: string][] = [
+  ['/admin',     'admin'],
+  ['/loueur',    'loueur'],
+  ['/assisteur', 'assisteur'],
+]
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })
 
@@ -21,11 +27,12 @@ export async function middleware(request: NextRequest) {
     },
   )
 
-  // Refresh session so cookies stay up to date (needed for all matched routes)
   const { data: { user } } = await supabase.auth.getUser()
 
-  // /admin — requires an authenticated user with role 'admin'
-  if (request.nextUrl.pathname.startsWith('/admin')) {
+  const path = request.nextUrl.pathname
+  const match = ROUTE_ROLES.find(([prefix]) => path.startsWith(prefix))
+
+  if (match) {
     if (!user) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
@@ -36,7 +43,8 @@ export async function middleware(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    if (!profile || profile.role !== 'admin') {
+    const [, requiredRole] = match
+    if (!profile || profile.role !== requiredRole) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
   }

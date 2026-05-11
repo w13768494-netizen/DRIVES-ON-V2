@@ -1,14 +1,10 @@
-import { createClient }                   from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
+import { supabaseAdmin }                  from '@/lib/supabase/admin'
 import { sendEmail }                      from '@/lib/email'
 import { buildInviteEmailHtml }           from '@/lib/inviteEmail'
 import { requireAdmin }                   from '@/lib/requireAdmin'
 
-const adminClient = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } },
-)
+const adminClient = supabaseAdmin
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin()
@@ -27,7 +23,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Champs obligatoires manquants' }, { status: 400 })
   }
 
-  const origin = request.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL ?? ''
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
   const { data, error } = await adminClient.auth.admin.generateLink({
     type:  'invite',

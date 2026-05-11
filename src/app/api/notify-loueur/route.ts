@@ -1,17 +1,11 @@
-import { NextRequest, NextResponse }              from 'next/server'
-import { createClient }                           from '@supabase/supabase-js'
-import { createClient as createServerClient }     from '@/lib/supabase/server'
-import { MOCK_RENTAL_AGENCIES }                   from '@/data/mockRentalAgencies'
-import { VEHICLE_CATEGORY_LABELS }                from '@/types/vehicleCategory'
-import { sendEmail }                              from '@/lib/email'
-import { buildLoueurEmailHtml }                   from '@/lib/loueurEmail'
-import type { AssistanceRequest }                 from '@/types/request'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { persistSession: false } },
-)
+import { NextRequest, NextResponse }          from 'next/server'
+import { createClient as createServerClient } from '@/lib/supabase/server'
+import { supabaseAdmin }                      from '@/lib/supabase/admin'
+import { MOCK_RENTAL_AGENCIES }               from '@/data/mockRentalAgencies'
+import { VEHICLE_CATEGORY_LABELS }            from '@/types/vehicleCategory'
+import { sendEmail }                          from '@/lib/email'
+import { buildLoueurEmailHtml }               from '@/lib/loueurEmail'
+import type { AssistanceRequest }             from '@/types/request'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
@@ -107,10 +101,10 @@ export async function POST(req: NextRequest) {
       })
 
       if (emailResult.ok) {
-        console.log(`[notify-loueur] email envoyé → ${agency.email}`)
+        console.log(`[notify-loueur] email envoyé pour agence ${agencyId}`)
         emailsSent++
       } else {
-        console.error(`[notify-loueur] email FAILED → ${agency.email} : ${emailResult.error}`)
+        console.error(`[notify-loueur] email FAILED pour agence ${agencyId} : ${emailResult.error}`)
         emailsFailed++
       }
     } else {
