@@ -46,13 +46,32 @@ export type AgencyInput = Pick<
   'opening_hours_weekdays' | 'opening_hours_saturday' | 'opening_hours_sunday'
 >
 
+async function geocodeAgencyAddress(
+  address: string | null,
+  city:    string | null,
+  postal:  string | null,
+): Promise<{ lat: number; lng: number } | null> {
+  const q = [address, postal, city].filter(Boolean).join(', ')
+  if (!q) return null
+  try {
+    const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`)
+    if (!res.ok) return null
+    const data = (await res.json()) as { latitude: number; longitude: number } | null
+    if (!data) return null
+    return { lat: data.latitude, lng: data.longitude }
+  } catch {
+    return null
+  }
+}
+
 export async function createAgency(input: AgencyInput): Promise<RentalAgencyRow | null> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
+  const coords = await geocodeAgencyAddress(input.address, input.city, input.postal_code)
   const { data, error } = await supabase
     .from('rental_agencies')
-    .insert({ ...input, owner_id: user.id })
+    .insert({ ...input, owner_id: user.id, ...(coords ?? {}) })
     .select()
     .single()
   if (error) { console.error('[rentalAgencyService] createAgency', error.message); return null }
@@ -61,9 +80,13 @@ export async function createAgency(input: AgencyInput): Promise<RentalAgencyRow 
 
 export async function updateAgency(id: string, patch: Partial<AgencyInput>): Promise<RentalAgencyRow | null> {
   const supabase = createClient()
+  const hasLocation = patch.address !== undefined || patch.city !== undefined || patch.postal_code !== undefined
+  const coords = hasLocation
+    ? await geocodeAgencyAddress(patch.address ?? null, patch.city ?? null, patch.postal_code ?? null)
+    : null
   const { data, error } = await supabase
     .from('rental_agencies')
-    .update(patch)
+    .update({ ...patch, ...(coords ?? {}) })
     .eq('id', id)
     .select()
     .single()
