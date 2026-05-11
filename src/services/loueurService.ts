@@ -2,8 +2,7 @@ import {
   getAllRequests, getRequestById, updateRequest,
   addTransferToRequest, lockRequestAfterConfirmation, confirmByAssisteur,
 } from '@/services/requestService'
-import { getMyAgencies, type RentalAgencyRow } from '@/services/rentalAgencyService'
-import { MOCK_RENTAL_AGENCIES }    from '@/data/mockRentalAgencies'
+import { getMyAgencies, getAgencyById, getAllActiveAgencies, type RentalAgencyRow } from '@/services/rentalAgencyService'
 import { calculateDistance }       from '@/lib/distance'
 import type { AssistanceRequest }  from '@/types/request'
 import type { ReceivedRequest, LoueurAction } from '@/types/loueur'
@@ -158,24 +157,31 @@ export async function getCurrentAgencies(): Promise<RentalAgency[]> {
 
 /** Utilisé par la page assisteur pour afficher les détails d'une agence loueur. */
 export async function getRentalAgencyById(id: string): Promise<RentalAgency | null> {
-  return MOCK_RENTAL_AGENCIES.find(a => a.id === id) ?? null
+  const row = await getAgencyById(id)
+  return row ? rowToRentalAgency(row) : null
 }
 
 export async function getNearbyAgenciesForTransfer(requestId: string): Promise<RentalAgency[]> {
-  const [myAgencies, request] = await Promise.all([getMyAgencies(), getRequestById(requestId)])
+  const [myAgencies, request, allAgencies] = await Promise.all([
+    getMyAgencies(),
+    getRequestById(requestId),
+    getAllActiveAgencies(),
+  ])
   if (!request) return []
 
   const myKeys = new Set(
     myAgencies.flatMap(a => [a.id, ...(a.external_id ? [a.external_id] : [])])
   )
 
-  return MOCK_RENTAL_AGENCIES
-    .filter(a => !myKeys.has(a.id) && a.isAvailable)
+  return allAgencies
+    .filter(a => !myKeys.has(a.id) && !(a.external_id && myKeys.has(a.external_id)))
     .map(a => ({
-      ...a,
-      distanceKm: calculateDistance(
-        a.latitude, a.longitude,
-        request.location.latitude, request.location.longitude,
-      ),
+      ...rowToRentalAgency(a),
+      distanceKm: a.lat && a.lng
+        ? calculateDistance(
+            a.lat, a.lng,
+            request.location.latitude, request.location.longitude,
+          )
+        : 0,
     }))
 }

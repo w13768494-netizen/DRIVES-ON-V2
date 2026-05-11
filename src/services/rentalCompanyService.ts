@@ -5,8 +5,6 @@ import type { RentalCompany }     from '@/types/rentalCompany'
 import type { VehicleCategoryType } from '@/types/vehicleCategory'
 import type { RentalAgencyRow }   from '@/services/rentalAgencyService'
 
-const SIMULATED_LATENCY_MS = 900
-
 const USE_SUPABASE =
   typeof process.env.NEXT_PUBLIC_SUPABASE_URL === 'string' &&
   process.env.NEXT_PUBLIC_SUPABASE_URL.startsWith('https://') &&
@@ -23,8 +21,6 @@ export async function getNearbyRentalCompanies(
   params: GetNearbyCompaniesParams,
 ): Promise<RentalCompany[]> {
   const { latitude, longitude, vehicleCategory, radiusKm = 500 } = params
-
-  await new Promise(resolve => setTimeout(resolve, SIMULATED_LATENCY_MS))
 
   const withDistance = MOCK_RENTAL_COMPANIES
     .filter(c => c.vehicleTypes.includes(vehicleCategory))
@@ -63,6 +59,5 @@ export async function getRentalCompanyById(id: string): Promise<RentalCompany | 
     }
   }
   // Fallback mock (IDs legacy ou Supabase indisponible)
-  await new Promise(resolve => setTimeout(resolve, 200))
   return MOCK_RENTAL_COMPANIES.find(c => c.id === id) ?? null
 }

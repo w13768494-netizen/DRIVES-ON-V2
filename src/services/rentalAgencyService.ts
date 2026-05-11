@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/client'
+import { createClient }  from '@/lib/supabase/client'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export interface RentalAgencyRow {
   id:                       string
@@ -92,6 +93,36 @@ export async function updateAgency(id: string, patch: Partial<AgencyInput>): Pro
     .single()
   if (error) { console.error('[rentalAgencyService] updateAgency', error.message); return null }
   return data as RentalAgencyRow
+}
+
+/** Lookup by UUID or external_id. Server-side only (admin client). */
+export async function getAgencyById(id: string): Promise<RentalAgencyRow | null> {
+  const { data, error } = await supabaseAdmin
+    .from('rental_agencies')
+    .select('*')
+    .eq('active', true)
+    .or(`id.eq.${id},external_id.eq.${id}`)
+    .maybeSingle()
+  if (error) {
+    console.error('[rentalAgencyService] getAgencyById', error.message)
+    return null
+  }
+  return (data as RentalAgencyRow) ?? null
+}
+
+/** All active + available agencies. Server-side only (admin client). */
+export async function getAllActiveAgencies(): Promise<RentalAgencyRow[]> {
+  const { data, error } = await supabaseAdmin
+    .from('rental_agencies')
+    .select('*')
+    .eq('active', true)
+    .eq('is_available', true)
+    .order('agency_name')
+  if (error) {
+    console.error('[rentalAgencyService] getAllActiveAgencies', error.message)
+    return []
+  }
+  return (data as RentalAgencyRow[]) ?? []
 }
 
 export async function deleteAgency(id: string): Promise<boolean> {

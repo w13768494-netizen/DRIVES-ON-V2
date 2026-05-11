@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse }          from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { supabaseAdmin }                      from '@/lib/supabase/admin'
-import { MOCK_RENTAL_AGENCIES }               from '@/data/mockRentalAgencies'
 import { VEHICLE_CATEGORY_LABELS }            from '@/types/vehicleCategory'
 import { sendEmail }                          from '@/lib/email'
 import { buildLoueurEmailHtml }               from '@/lib/loueurEmail'
@@ -51,13 +50,11 @@ export async function POST(req: NextRequest) {
   let emailsFailed = 0
 
   for (const agencyId of agencyIds) {
-    const agency = MOCK_RENTAL_AGENCIES.find(a => a.id === agencyId)
-
-    // Lookup owner_id from Supabase to bind notification to the real loueur user
+    // Single query — fetches owner_id, email, agency_name; handles UUID and external_id
     const { data: agencyRow } = await supabaseAdmin
       .from('rental_agencies')
-      .select('owner_id')
-      .eq('id', agencyId)
+      .select('owner_id, email, agency_name')
+      .or(`id.eq.${agencyId},external_id.eq.${agencyId}`)
       .maybeSingle()
 
     // ── 1. Notification plateforme (Supabase) ────────────────────────────────
@@ -77,15 +74,15 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 2. Email (awaité — l'échec est loggé et compté) ──────────────────────
-    if (agency?.email) {
+    if (agencyRow?.email) {
       const requestUrl  = `${APP_URL}/loueur/demandes/${request.id}`
       const emailResult = await sendEmail({
-        to:      agency.email,
+        to:      agencyRow.email,
         subject: request.requestType === 'immediate'
           ? `⚡ Demande immédiate DRIVES ON — ${vehicleLabel}`
           : `Nouvelle demande DRIVES ON — ${vehicleLabel}`,
         html: buildLoueurEmailHtml({
-          agencyName:       agency.name,
+          agencyName:       agencyRow.agency_name,
           dossierNumber:    request.dossierNumber,
           address,
           vehicleLabel,
