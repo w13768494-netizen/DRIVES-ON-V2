@@ -10,8 +10,6 @@ import type { ReceivedRequest, LoueurAction } from '@/types/loueur'
 import type { RentalAgency }       from '@/types/rentalAgency'
 import type { RequestTimelineEvent } from '@/types/requestTimeline'
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
 function generateEvtId(): string {
   return `evt-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`
 }
@@ -160,7 +158,6 @@ export async function getCurrentAgencies(): Promise<RentalAgency[]> {
 
 /** Utilisé par la page assisteur pour afficher les détails d'une agence loueur. */
 export async function getRentalAgencyById(id: string): Promise<RentalAgency | null> {
-  await delay(150)
   return MOCK_RENTAL_AGENCIES.find(a => a.id === id) ?? null
 }
 

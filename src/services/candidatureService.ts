@@ -2,7 +2,6 @@ import { MOCK_CANDIDATURES } from '@/data/mockCandidatures'
 import type { Candidature, CandidatureRole } from '@/types/candidature'
 
 const STORE_KEY = 'driveson:candidatures:v1'
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 function reviveDates(_key: string, value: unknown): unknown {
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
@@ -32,14 +31,12 @@ function generateId(): string {
 }
 
 export async function getCandidatures(): Promise<Candidature[]> {
-  await delay(400)
   return loadStore().sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime())
 }
 
 export async function submitCandidature(
   data: Omit<Candidature, 'id' | 'status' | 'submittedAt'>,
 ): Promise<Candidature> {
-  await delay(1200)
   const candidature: Candidature = {
     ...data,
     id:          generateId(),
@@ -55,7 +52,6 @@ export async function reviewCandidature(
   status: 'acceptee' | 'refusee',
   note?:  string,
 ): Promise<Candidature | null> {
-  await delay(500)
   const store = loadStore()
   let updated: Candidature | null = null
   saveStore(store.map(c => {

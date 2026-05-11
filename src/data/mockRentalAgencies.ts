@@ -18,7 +18,7 @@ export const MOCK_RENTAL_AGENCIES: RentalAgency[] = [
     longitude:       2.3522,
     serviceRadiusKm: 40,
     phone:           '01 42 00 11 22',
-    email:           'wilfried.druet@outlook.fr',
+    email:           'contact@autoloc-group.fr',
     contactName:     'Marc Lebrun',
     isAvailable:     true,
     openingHours: {

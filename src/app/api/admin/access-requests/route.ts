@@ -1,12 +1,6 @@
-import { createClient }                    from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
+import { supabaseAdmin as adminClient }   from '@/lib/supabase/admin'
 import { requireAdmin }                   from '@/lib/requireAdmin'
-
-const adminClient = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } },
-)
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin()

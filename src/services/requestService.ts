@@ -215,8 +215,6 @@ function generateEvtId(): string {
   return `evt-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`
 }
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
 // ── Lecture ───────────────────────────────────────────────────────────────────
 
 export async function getAllRequests(): Promise<AssistanceRequest[]> {
@@ -227,7 +225,6 @@ export async function getAllRequests(): Promise<AssistanceRequest[]> {
       .order('created_at', { ascending: false })
     if (!error && data) return (data as DbRow[]).map(rowToRequest)
   }
-  await delay(500)
   return loadStore().sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
 }
 
@@ -241,7 +238,6 @@ export async function getRequestById(id: string): Promise<AssistanceRequest | nu
     if (!error && data) return rowToRequest(data as DbRow)
     return null
   }
-  await delay(250)
   return loadStore().find(r => r.id === id) ?? null
 }
 
@@ -301,7 +297,6 @@ export async function sendRequest(
   if (USE_SUPABASE) {
     await supabase.from('assistance_requests').insert(requestToRow(request))
   } else {
-    await delay(1100)
     saveStore([request, ...loadStore()])
   }
 
@@ -331,7 +326,6 @@ export async function updateRequest(
     if (!error && data) return rowToRequest(data as DbRow)
     return null
   }
-  await delay(300)
   let updated: AssistanceRequest | null = null
   const next = loadStore().map(r => {
     if (r.id !== id) return r
@@ -383,7 +377,6 @@ export async function lockRequestAfterConfirmation(
     return { request: updated ?? current, wasAlreadyLocked: false }
   }
 
-  await delay(600)
   const store   = loadStore()
   const request = store.find(r => r.id === requestId)
   if (!request) return { request: null as unknown as AssistanceRequest, wasAlreadyLocked: false }
