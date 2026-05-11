@@ -33,12 +33,14 @@ export function RequestConfirmation({ request, companies, documentUploaded = fal
     try {
       await addDocument(
         coverageFile
-          ? { requestId: request.id, type: 'prise_en_charge', owner: 'assisteur', fileName: coverageFile.name, sizeKb: Math.round(coverageFile.size / 1024) }
-          : { requestId: request.id, type: 'prise_en_charge', owner: 'assisteur', fileName: 'Lien document', url: coverageUrl }
+          ? { file: coverageFile, requestId: request.id, type: 'prise_en_charge', owner: 'assisteur' }
+          : { url: coverageUrl,   requestId: request.id, type: 'prise_en_charge', owner: 'assisteur' },
       )
       setUploaded(true)
       setCoverageFile(null)
       setCoverageUrl('')
+    } catch (err) {
+      console.error('[RequestConfirmation] upload échoué :', err)
     } finally {
       setUploading(false)
     }

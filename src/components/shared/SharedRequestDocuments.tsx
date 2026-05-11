@@ -129,7 +129,7 @@ function DocItem({ doc, onDelete }: { doc: RequestDocument; onDelete?: (id: stri
     await onDelete(doc.id)
   }
 
-  const viewHref = doc.url ?? doc.dataUrl ?? null
+  const viewHref = doc.viewUrl ?? doc.url ?? null
 
   return (
     <li className={`flex items-center justify-between gap-3 p-3 rounded-xl border ${colorCls}`}>
@@ -201,36 +201,17 @@ function DocUploader({
   const [uploading, setUploading] = useState(false)
   const [error, setError]     = useState<string | null>(null)
 
-  function readAsDataUrl(f: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload  = e => resolve(e.target?.result as string)
-      reader.onerror = reject
-      reader.readAsDataURL(f)
-    })
-  }
-
   async function handleUpload() {
     if (!file) { setError('Sélectionnez un fichier.'); return }
-    if (file.size > 10 * 1024 * 1024) { setError('Fichier trop volumineux (max 10 Mo).'); return }
     setError(null)
     setUploading(true)
     try {
-      const dataUrl = await readAsDataUrl(file)
-      const doc = await addDocument({
-        requestId,
-        type,
-        owner,
-        fileName: file.name,
-        comment:  comment || undefined,
-        sizeKb:   Math.round(file.size / 1024),
-        dataUrl,
-      })
+      const doc = await addDocument({ file, requestId, type, owner, comment: comment || undefined })
       onAdd(doc)
       setFile(null)
       setComment('')
-    } catch {
-      setError("Erreur lors de l'ajout du document.")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur lors de l'ajout du document.")
     } finally {
       setUploading(false)
     }

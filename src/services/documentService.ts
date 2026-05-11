@@ -1,60 +1,95 @@
-import { MOCK_REQUEST_DOCUMENTS } from '@/data/mockRequestDocuments'
-import type { RequestDocument } from '@/types/requestDocument'
+import type { RequestDocument, RequestDocumentType, RequestDocumentOwner } from '@/types/requestDocument'
+import type { DocumentApiResponse } from '@/lib/documents/helpers'
 
-// ── Persistance localStorage ──────────────────────────────────────────────────
+// ── Types d'entrée pour addDocument ──────────────────────────────────────────
 
-const STORE_KEY = 'driveson:documents:v3'
+export type AddDocumentByFile = {
+  file:      File
+  requestId: string
+  type:      RequestDocumentType
+  owner:     RequestDocumentOwner
+  comment?:  string
+}
 
-function reviveDates(_key: string, value: unknown): unknown {
-  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
-    return new Date(value)
+export type AddDocumentByUrl = {
+  url:       string
+  requestId: string
+  type:      RequestDocumentType
+  owner:     RequestDocumentOwner
+  comment?:  string
+}
+
+// ── Mapping réponse API → RequestDocument ────────────────────────────────────
+
+function responseToDocument(r: DocumentApiResponse): RequestDocument {
+  return {
+    id:        r.id,
+    requestId: r.requestId,
+    type:      r.type,
+    owner:     r.owner,
+    fileName:  r.fileName,
+    addedAt:   new Date(r.addedAt),
+    comment:   r.comment,
+    sizeKb:    r.sizeKb,
+    viewUrl:   r.viewUrl,
+    url:       r.url,
   }
-  return value
-}
-
-function loadStore(): RequestDocument[] {
-  if (typeof window === 'undefined') return [...MOCK_REQUEST_DOCUMENTS]
-  try {
-    const raw = localStorage.getItem(STORE_KEY)
-    if (raw) return JSON.parse(raw, reviveDates) as RequestDocument[]
-  } catch { /* ignore */ }
-  const initial = [...MOCK_REQUEST_DOCUMENTS]
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(initial)) } catch { /* ignore */ }
-  return initial
-}
-
-function saveStore(data: RequestDocument[]): void {
-  if (typeof window === 'undefined') return
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(data)) } catch { /* ignore */ }
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
-function generateId(): string {
-  return `doc-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
 export async function getDocumentsByRequest(requestId: string): Promise<RequestDocument[]> {
-  await delay(300)
-  return loadStore()
-    .filter(d => d.requestId === requestId)
-    .sort((a, b) => b.addedAt.getTime() - a.addedAt.getTime())
+  const res = await fetch(`/api/documents?requestId=${encodeURIComponent(requestId)}`)
+  if (!res.ok) {
+    console.error('[documentService] getDocumentsByRequest', res.status)
+    return []
+  }
+  const data = (await res.json()) as DocumentApiResponse[]
+  return data.map(responseToDocument)
 }
 
 export async function addDocument(
-  data: Omit<RequestDocument, 'id' | 'addedAt'>,
+  params: AddDocumentByFile | AddDocumentByUrl,
 ): Promise<RequestDocument> {
-  await delay(900)
-  const doc: RequestDocument = { ...data, id: generateId(), addedAt: new Date() }
-  saveStore([doc, ...loadStore()])
-  return doc
+  if ('file' in params) {
+    const fd = new FormData()
+    fd.append('file',      params.file)
+    fd.append('requestId', params.requestId)
+    fd.append('type',      params.type)
+    fd.append('owner',     params.owner)
+    if (params.comment) fd.append('comment', params.comment)
+
+    const res = await fetch('/api/documents/upload', { method: 'POST', body: fd })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: 'Erreur inconnue' })) as { error?: string }
+      throw new Error(body.error ?? "Erreur lors de l'upload")
+    }
+    return responseToDocument((await res.json()) as DocumentApiResponse)
+  }
+
+  // Lien externe
+  const res = await fetch('/api/documents/link', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({
+      url:       params.url,
+      requestId: params.requestId,
+      type:      params.type,
+      owner:     params.owner,
+      comment:   params.comment,
+    }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: 'Erreur inconnue' })) as { error?: string }
+    throw new Error(body.error ?? "Erreur lors de l'enregistrement du lien")
+  }
+  return responseToDocument((await res.json()) as DocumentApiResponse)
 }
 
 export async function deleteDocument(id: string): Promise<void> {
-  await delay(300)
-  saveStore(loadStore().filter(d => d.id !== id))
+  const res = await fetch(`/api/documents/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: 'Erreur inconnue' })) as { error?: string }
+    throw new Error(body.error ?? 'Erreur lors de la suppression')
+  }
 }

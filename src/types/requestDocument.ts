@@ -47,6 +47,6 @@ export interface RequestDocument {
   addedAt:   Date
   comment?:  string
   sizeKb?:   number
-  dataUrl?:  string
-  url?:      string
+  viewUrl?:  string  // signed URL Supabase Storage ou URL externe
+  url?:      string  // URL externe uniquement — distingue l'icône Link vs Eye
 }

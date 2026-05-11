@@ -91,20 +91,18 @@ export default function NouvelleDemandePage() {
       const request = await sendRequest(input, companyIds)
       if (coverageFile) {
         await addDocument({
+          file:      coverageFile,
           requestId: request.id,
           type:      'prise_en_charge',
           owner:     'assisteur',
-          fileName:  coverageFile.name,
-          sizeKb:    Math.round(coverageFile.size / 1024),
         })
         setDocumentUploaded(true)
       } else if (coverageUrl) {
         await addDocument({
+          url:       coverageUrl,
           requestId: request.id,
           type:      'prise_en_charge',
           owner:     'assisteur',
-          fileName:  'Lien document',
-          url:       coverageUrl,
         })
         setDocumentUploaded(true)
       }
