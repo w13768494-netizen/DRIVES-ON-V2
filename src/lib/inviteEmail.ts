@@ -1,3 +1,5 @@
+// ── Reset mot de passe ────────────────────────────────────────────────────────
+
 export function buildResetEmailHtml({
   fullName,
   resetLink,
@@ -39,11 +41,8 @@ export function buildResetEmailHtml({
             </td></tr>
           </table>
 
-          <p style="margin:0 0 8px;font-size:12px;color:#94a3b8;text-align:center;line-height:1.6;">
+          <p style="margin:0;font-size:12px;color:#94a3b8;text-align:center;line-height:1.6;">
             Ce lien est valable <strong>24 heures</strong>. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
-          </p>
-          <p style="margin:0;font-size:11px;color:#cbd5e1;text-align:center;word-break:break-all;">
-            ${resetLink}
           </p>
 
         </td></tr>
@@ -59,6 +58,31 @@ export function buildResetEmailHtml({
 </body>
 </html>`
 }
+
+export function buildResetEmailText({
+  fullName,
+  resetLink,
+}: {
+  fullName:  string
+  resetLink: string
+}): string {
+  return [
+    'Accédez à votre espace Drives On',
+    '',
+    `Bonjour${fullName ? ` ${fullName}` : ''},`,
+    '',
+    'Cliquez sur le lien ci-dessous pour définir votre mot de passe et accéder à votre espace Drives On.',
+    '',
+    resetLink,
+    '',
+    'Ce lien est valable 24 heures.',
+    "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.",
+    '',
+    `© ${new Date().getFullYear()} Drives On`,
+  ].join('\n')
+}
+
+// ── Invitation nouveau partenaire ─────────────────────────────────────────────
 
 export function buildInviteEmailHtml({
   fullName,
@@ -106,11 +130,8 @@ export function buildInviteEmailHtml({
             </td></tr>
           </table>
 
-          <p style="margin:0 0 8px;font-size:12px;color:#94a3b8;text-align:center;line-height:1.6;">
+          <p style="margin:0;font-size:12px;color:#94a3b8;text-align:center;line-height:1.6;">
             Ce lien est valable <strong>24 heures</strong>. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
-          </p>
-          <p style="margin:0;font-size:11px;color:#cbd5e1;text-align:center;word-break:break-all;">
-            ${inviteLink}
           </p>
 
         </td></tr>
@@ -125,4 +146,32 @@ export function buildInviteEmailHtml({
   </table>
 </body>
 </html>`
+}
+
+export function buildInviteEmailText({
+  fullName,
+  role,
+  inviteLink,
+}: {
+  fullName:   string
+  role:       'loueur' | 'assisteur'
+  inviteLink: string
+}): string {
+  const roleLabel = role === 'loueur' ? 'Loueur' : 'Assisteur'
+
+  return [
+    `Votre accès Drives On est prêt — ${roleLabel}`,
+    '',
+    `Bonjour ${fullName},`,
+    '',
+    "L'équipe Drives On a validé votre demande de partenariat.",
+    `Cliquez sur le lien ci-dessous pour définir votre mot de passe et accéder à votre espace ${roleLabel}.`,
+    '',
+    inviteLink,
+    '',
+    'Ce lien est valable 24 heures.',
+    "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.",
+    '',
+    `© ${new Date().getFullYear()} Drives On`,
+  ].join('\n')
 }

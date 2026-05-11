@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin }                  from '@/lib/supabase/admin'
 import { sendEmail }                      from '@/lib/email'
-import { buildInviteEmailHtml }           from '@/lib/inviteEmail'
+import { buildInviteEmailHtml, buildInviteEmailText } from '@/lib/inviteEmail'
 import { requireAdmin }                   from '@/lib/requireAdmin'
+import { getAppUrl }                      from '@/lib/appUrl'
 
 const adminClient = supabaseAdmin
 
@@ -23,14 +24,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Champs obligatoires manquants' }, { status: 400 })
   }
 
-  const origin = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const appUrl = getAppUrl()
 
   const { data, error } = await adminClient.auth.admin.generateLink({
     type:  'invite',
     email,
     options: {
       data:       { role, full_name, company_name: company_name ?? '' },
-      redirectTo: `${origin}/auth/set-password`,
+      redirectTo: `${appUrl}/auth/set-password`,
     },
   })
 
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
   }
 
   const inviteLink =
-    `${origin}/auth/callback` +
+    `${appUrl}/auth/callback` +
     `?token_hash=${data.properties.hashed_token}` +
     `&type=invite` +
     `&next=/auth/set-password`
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest) {
     to:      email,
     subject: 'Votre accès Drives On est prêt',
     html:    buildInviteEmailHtml({ fullName: full_name, role, inviteLink }),
+    text:    buildInviteEmailText({ fullName: full_name, role, inviteLink }),
   })
 
   if (!emailResult.ok) {

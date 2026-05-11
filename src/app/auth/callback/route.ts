@@ -8,7 +8,9 @@ export async function GET(request: NextRequest) {
   const code       = searchParams.get('code')
   const token_hash = searchParams.get('token_hash')
   const type       = searchParams.get('type')
-  const next       = searchParams.get('next') ?? '/'
+  const rawNext    = searchParams.get('next') ?? '/'
+  // N'accepte que les chemins relatifs (commence par / mais pas //)
+  const next       = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/'
 
   const cookieStore = await cookies()
   const supabase = createServerClient(

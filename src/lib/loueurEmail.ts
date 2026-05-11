@@ -1,4 +1,4 @@
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+import { getAppUrl } from '@/lib/appUrl'
 
 const COVERAGE_LABELS: Record<string, string> = {
   full:    'Prise en charge totale',
@@ -53,7 +53,41 @@ export interface LoueurEmailParams {
   requestUrl:       string
 }
 
+export function buildLoueurEmailText(p: LoueurEmailParams): string {
+  const appUrl      = getAppUrl()
+  const coverageLabel = COVERAGE_LABELS[p.coverageType] ?? p.coverageType
+  const dateEnd     = addDays(p.dateNeeded, p.durationDays)
+  const earnings    = p.targetPrice ? p.targetPrice * p.durationDays : null
+  const isImmediate = p.requestType === 'immediate'
+  const isMulti     = p.agencyCount > 1
+
+  return [
+    'DRIVES ON — Nouvelle demande assignée',
+    '',
+    `Bonjour ${p.agencyName},`,
+    'Une demande de véhicule de remplacement vous a été assignée.',
+    '',
+    ...(isImmediate ? ['⚡ DEMANDE IMMÉDIATE', ''] : []),
+    ...(isMulti     ? [`${p.agencyCount} loueurs contactés — premier répondant retenu`, ''] : []),
+    `Dossier       : ${p.dossierNumber}`,
+    `Lieu          : ${p.address}`,
+    `Catégorie     : ${p.vehicleLabel}`,
+    `Prise en ch.  : ${formatDate(p.dateNeeded)} à ${formatTime(p.dateNeeded)}`,
+    `Retour prévu  : ${formatDate(dateEnd)} à ${formatTime(dateEnd)}`,
+    ...(p.maxExtensionDays ? [`Prolongation  : +${p.maxExtensionDays}j possible`] : []),
+    `Couverture    : ${coverageLabel}`,
+    ...(earnings !== null ? [`Gain estimé   : ${earnings} € (${p.targetPrice} €/j × ${p.durationDays}j)`] : []),
+    '',
+    `Voir la demande : ${p.requestUrl}`,
+    '',
+    `--`,
+    `DRIVES ON — Plateforme d'assistance sinistres`,
+    appUrl,
+  ].join('\n')
+}
+
 export function buildLoueurEmailHtml(p: LoueurEmailParams): string {
+  const appUrl        = getAppUrl()
   const isImmediate   = p.requestType === 'immediate'
   const isMulti       = p.agencyCount > 1
   const coverageColor = COVERAGE_COLORS[p.coverageType] ?? '#64748b'
@@ -203,7 +237,7 @@ export function buildLoueurEmailHtml(p: LoueurEmailParams): string {
     <td align="center" style="padding-top:22px">
       <p style="margin:0;font-size:11px;color:#a8a29e;line-height:1.8">
         DRIVES ON — Plateforme d'assistance sinistres<br>
-        <a href="${APP_URL}" style="color:#a8a29e;text-decoration:none">${APP_URL}</a>
+        <a href="${appUrl}" style="color:#a8a29e;text-decoration:none">${appUrl}</a>
       </p>
     </td>
   </tr>

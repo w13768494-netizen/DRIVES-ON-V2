@@ -4,9 +4,11 @@ const POSTMARK_KEY = process.env.POSTMARK_API_KEY
 const FROM_EMAIL   = process.env.NOTIFY_FROM_EMAIL ?? 'notifications@drives-on.fr'
 
 export async function sendEmail(params: {
-  to:      string
-  subject: string
-  html:    string
+  to:       string
+  subject:  string
+  html:     string
+  text?:    string
+  replyTo?: string
 }): Promise<{ ok: boolean; error?: string }> {
   if (!POSTMARK_KEY) return { ok: false, error: 'POSTMARK_API_KEY non configurée' }
 
@@ -14,15 +16,17 @@ export async function sendEmail(params: {
     const res = await fetch('https://api.postmarkapp.com/email', {
       method:  'POST',
       headers: {
-        'Accept':                   'application/json',
-        'Content-Type':             'application/json',
-        'X-Postmark-Server-Token':  POSTMARK_KEY,
+        'Accept':                  'application/json',
+        'Content-Type':            'application/json',
+        'X-Postmark-Server-Token': POSTMARK_KEY,
       },
       body: JSON.stringify({
         From:          FROM_EMAIL,
         To:            params.to,
         Subject:       params.subject,
         HtmlBody:      params.html,
+        ...(params.text    && { TextBody: params.text }),
+        ...(params.replyTo && { ReplyTo:  params.replyTo }),
         MessageStream: 'outbound',
       }),
     })
