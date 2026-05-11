@@ -2,7 +2,7 @@
 
 import { useEffect, useState }  from 'react'
 import { useRouter }             from 'next/navigation'
-import { Loader2, Eye, EyeOff, KeyRound } from 'lucide-react'
+import { Loader2, Eye, EyeOff, KeyRound, ShieldCheck, Truck } from 'lucide-react'
 import { createClient }          from '@/lib/supabase/client'
 import { DrivesOnLogo }          from '@/components/shared/DrivesOnLogo'
 import { getProfile }            from '@/services/profileService'
@@ -14,20 +14,44 @@ const DEST: Record<UserRole, string> = {
   admin:     '/admin',
 }
 
+const ROLE_LABEL: Record<string, string> = {
+  loueur:    'Loueur',
+  assisteur: 'Assisteur',
+}
+
+const ROLE_ICON: Record<string, React.ReactNode> = {
+  loueur:    <Truck      className="w-4 h-4" />,
+  assisteur: <ShieldCheck className="w-4 h-4" />,
+}
+
+interface UserInfo {
+  fullName:    string
+  companyName: string
+  role:        string
+  email:       string
+}
+
 export default function SetPasswordPage() {
   const router = useRouter()
   const [ready, setReady]       = useState(false)
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   const [password, setPassword] = useState('')
   const [confirm, setConfirm]   = useState('')
   const [showPwd, setShowPwd]   = useState(false)
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
 
-  // getSession() détecte les tokens dans le hash (flux invitation)
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.replace('/login'); return }
+      const meta = session.user.user_metadata ?? {}
+      setUserInfo({
+        fullName:    meta.full_name    ?? '',
+        companyName: meta.company_name ?? '',
+        role:        meta.role         ?? '',
+        email:       session.user.email ?? '',
+      })
       setReady(true)
     })
   }, [router])
@@ -43,7 +67,6 @@ export default function SetPasswordPage() {
     const { error: updateErr } = await supabase.auth.updateUser({ password })
     if (updateErr) { setError(updateErr.message); setLoading(false); return }
 
-    // Lire le profil pour rediriger au bon espace
     const profile = await getProfile(supabase)
     if (!profile) {
       setError('Votre profil est introuvable. Veuillez contacter l\'administrateur Drives On.')
@@ -69,8 +92,28 @@ export default function SetPasswordPage() {
       </div>
 
       <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+
+        {/* Identité du partenaire */}
+        {userInfo && (
+          <div className="mb-6 pb-6 border-b border-slate-100">
+            {userInfo.role && (
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-brand-50 text-brand-600 mb-3">
+                {ROLE_ICON[userInfo.role]}
+                {ROLE_LABEL[userInfo.role] ?? userInfo.role}
+              </span>
+            )}
+            {userInfo.fullName && (
+              <p className="text-base font-black text-slate-900">{userInfo.fullName}</p>
+            )}
+            {userInfo.companyName && (
+              <p className="text-sm text-slate-500">{userInfo.companyName}</p>
+            )}
+            <p className="text-xs text-slate-400 mt-0.5">{userInfo.email}</p>
+          </div>
+        )}
+
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
             <KeyRound className="w-5 h-5 text-brand-500" />
           </div>
           <div>
