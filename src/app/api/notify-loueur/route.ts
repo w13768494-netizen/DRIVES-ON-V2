@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse }                       from 'next/server'
 import { supabaseAdmin }                                   from '@/lib/supabase/admin'
 import { requireAuth }                                     from '@/lib/requireAuth'
+import * as Sentry                                         from '@sentry/nextjs'
 import { VEHICLE_CATEGORY_LABELS }                         from '@/types/vehicleCategory'
 import { sendEmail }                                       from '@/lib/email'
 import { buildLoueurEmailHtml, buildLoueurEmailText }      from '@/lib/loueurEmail'
@@ -48,18 +49,20 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     // ── 1. Notification plateforme (Supabase) ──────────────────────────────
-    const notifId = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-    const { error: notifErr } = await supabaseAdmin.from('notifications').insert({
-      id:         notifId,
-      agency_id:  agencyId,
-      user_id:    agencyRow?.owner_id ?? null,
-      type:       'new_request',
-      title:      `Nouvelle demande — ${address}`,
-      body:       `${vehicleLabel} · ${request.durationDays}j`,
-      request_id: request.id,
-    })
-    if (notifErr) {
-      console.error(`[notify-loueur] notif Supabase échouée pour ${agencyId}:`, notifErr.message)
+    // Requiert owner_id (user_id NOT NULL dans le schéma).
+    // Si l'agence n'a pas de propriétaire connu, on saute la notification in-app.
+    if (agencyRow?.owner_id) {
+      const { error: notifErr } = await supabaseAdmin.from('notifications').insert({
+        agency_id:  agencyId,
+        user_id:    agencyRow.owner_id,
+        type:       'new_request',
+        title:      `Nouvelle demande — ${address}`,
+        body:       `${vehicleLabel} · ${request.durationDays}j`,
+        request_id: request.id,
+      })
+      if (notifErr) {
+        console.error(`[notify-loueur] notif Supabase échouée pour ${agencyId}:`, notifErr.message)
+      }
     }
 
     // ── 2. Email ────────────────────────────────────────────────────────────
@@ -101,5 +104,14 @@ export async function POST(req: NextRequest) {
   }
 
   console.log(`[notify-loueur] terminé — ${emailsSent} envoyé(s), ${emailsFailed} échec(s)`)
+
+  if (emailsFailed > 0) {
+    Sentry.captureEvent({
+      message: '[notify-loueur] Email delivery failures',
+      level:   'warning',
+      extra:   { requestId: request.id, emailsSent, emailsFailed, totalAgencies: agencyIds.length },
+    })
+  }
+
   return NextResponse.json({ ok: true, emailsSent, emailsFailed })
 }

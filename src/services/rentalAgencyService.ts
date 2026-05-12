@@ -1,5 +1,4 @@
-import { createClient }  from '@/lib/supabase/client'
-import { supabaseAdmin } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/client'
 
 export interface RentalAgencyRow {
   id:                       string
@@ -95,9 +94,10 @@ export async function updateAgency(id: string, patch: Partial<AgencyInput>): Pro
   return data as RentalAgencyRow
 }
 
-/** Lookup by UUID or external_id. Server-side only (admin client). */
+/** Lookup by UUID or external_id. */
 export async function getAgencyById(id: string): Promise<RentalAgencyRow | null> {
-  const { data, error } = await supabaseAdmin
+  const supabase = createClient()
+  const { data, error } = await supabase
     .from('rental_agencies')
     .select('*')
     .eq('active', true)
@@ -110,9 +110,10 @@ export async function getAgencyById(id: string): Promise<RentalAgencyRow | null>
   return (data as RentalAgencyRow) ?? null
 }
 
-/** All active + available agencies. Server-side only (admin client). */
+/** All active + available agencies. */
 export async function getAllActiveAgencies(): Promise<RentalAgencyRow[]> {
-  const { data, error } = await supabaseAdmin
+  const supabase = createClient()
+  const { data, error } = await supabase
     .from('rental_agencies')
     .select('*')
     .eq('active', true)

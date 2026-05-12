@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth }              from '@/lib/requireAuth'
+import * as Sentry                  from '@sentry/nextjs'
 
 export interface GeocodeResult {
   latitude:    number
@@ -28,10 +29,14 @@ export async function GET(req: NextRequest) {
       next: { revalidate: 0 },
     })
   } catch {
+    Sentry.captureEvent({ message: '[geocode] Nominatim unreachable', level: 'error' })
     return NextResponse.json({ error: 'Nominatim injoignable' }, { status: 502 })
   }
 
-  if (!res.ok) return NextResponse.json({ error: 'Erreur Nominatim' }, { status: 502 })
+  if (!res.ok) {
+    Sentry.captureEvent({ message: '[geocode] Nominatim error response', level: 'warning', extra: { status: res.status } })
+    return NextResponse.json({ error: 'Erreur Nominatim' }, { status: 502 })
+  }
 
   const data = await res.json()
   if (!Array.isArray(data) || data.length === 0) {

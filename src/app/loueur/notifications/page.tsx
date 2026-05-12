@@ -20,14 +20,13 @@ export default function LoueurNotificationsPage() {
 
   useEffect(() => { load() }, [load])
 
-  const unread = notifs.filter(n => !n.readAt).length
+  const unread = notifs.filter(n => !n.read).length
 
   async function handleClick(notif: PlatformNotification) {
-    // Marquer comme lu
-    if (!notif.readAt) {
+    if (!notif.read) {
       await markAsRead(notif.id)
       setNotifs(prev => prev.map(n =>
-        n.id === notif.id ? { ...n, readAt: new Date() } : n
+        n.id === notif.id ? { ...n, read: true } : n
       ))
     }
     // Naviguer vers la demande
@@ -39,7 +38,7 @@ export default function LoueurNotificationsPage() {
   async function handleMarkAll() {
     setMarking(true)
     await markAllAsRead()
-    setNotifs(prev => prev.map(n => ({ ...n, readAt: n.readAt ?? new Date() })))
+    setNotifs(prev => prev.map(n => ({ ...n, read: true })))
     setMarking(false)
   }
 
@@ -97,7 +96,7 @@ export default function LoueurNotificationsPage() {
       ) : (
         <div className="flex flex-col gap-2">
           {notifs.map(notif => {
-            const isUnread = !notif.readAt
+            const isUnread = !notif.read
             const dateStr  = notif.createdAt.toLocaleDateString('fr-FR', {
               day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
             })

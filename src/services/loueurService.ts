@@ -1,6 +1,6 @@
 import {
   getAllRequests, getRequestById, updateRequest,
-  addTransferToRequest, lockRequestAfterConfirmation, confirmByAssisteur,
+  addTransferToRequest, lockRequestAfterConfirmation, confirmByAssisteur, refuseCounterOffer,
 } from '@/services/requestService'
 import { getMyAgencies, getAgencyById, getAllActiveAgencies, type RentalAgencyRow } from '@/services/rentalAgencyService'
 import { calculateDistance }       from '@/lib/distance'
@@ -128,6 +128,21 @@ export async function respondToRequest(
     if (!accepted) return null
     const confirmed = await confirmByAssisteur(requestId)
     return confirmed ?? accepted
+  }
+
+  if (action.type === 'contre_proposition') {
+    const loueurResponse = {
+      agencyId:     aKey,
+      agencyName:   aName,
+      pricePerDay:  action.pricePerDay,
+      vehicleModel: action.vehicleModel,
+      message:      action.message,
+      respondedAt:  new Date(),
+    }
+    const { request: pending } = await lockRequestAfterConfirmation(
+      requestId, aKey, aName, loueurResponse, true,
+    )
+    return pending ?? null
   }
 
   if (action.type === 'refuser') {

@@ -1,4 +1,5 @@
 // Server-side only — ne pas importer depuis des composants client
+import * as Sentry from '@sentry/nextjs'
 
 const POSTMARK_KEY = process.env.POSTMARK_API_KEY
 const FROM_EMAIL   = process.env.NOTIFY_FROM_EMAIL ?? 'notifications@drives-on.fr'
@@ -33,12 +34,18 @@ export async function sendEmail(params: {
     if (!res.ok) {
       const body = await res.text()
       console.error('[email] Postmark error', res.status)
+      Sentry.captureEvent({
+        message: '[email] Postmark delivery failed',
+        level:   'error',
+        extra:   { statusCode: res.status },
+      })
       return { ok: false, error: `Postmark ${res.status}: ${body}` }
     }
     return { ok: true }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[email] Failed to send:', msg)
+    Sentry.captureException(err instanceof Error ? err : new Error(msg))
     return { ok: false, error: msg }
   }
 }

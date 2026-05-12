@@ -2,24 +2,24 @@ import { supabase } from '@/lib/supabaseClient'
 
 export interface PlatformNotification {
   id:        string
-  agencyId:  string
+  agencyId:  string | null
   type:      string
   title:     string
   body:      string
   requestId: string | null
-  readAt:    Date | null
+  read:      boolean
   createdAt: Date
 }
 
 interface DbNotif {
   id:         string
-  agency_id:  string
+  agency_id:  string | null
   user_id:    string | null
   type:       string
   title:      string
   body:       string
   request_id: string | null
-  read_at:    string | null
+  read:       boolean
   created_at: string
 }
 
@@ -31,7 +31,7 @@ function rowToNotif(row: DbNotif): PlatformNotification {
     title:     row.title,
     body:      row.body,
     requestId: row.request_id,
-    readAt:    row.read_at ? new Date(row.read_at) : null,
+    read:      row.read,
     createdAt: new Date(row.created_at),
   }
 }
@@ -52,21 +52,21 @@ export async function getUnreadCount(): Promise<number> {
   const { count, error } = await supabase
     .from('notifications')
     .select('*', { count: 'exact', head: true })
-    .is('read_at', null)
+    .eq('read', false)
   return !error && count ? count : 0
 }
 
 export async function markAsRead(id: string): Promise<void> {
   await supabase
     .from('notifications')
-    .update({ read_at: new Date().toISOString() })
+    .update({ read: true })
     .eq('id', id)
-    .is('read_at', null)
+    .eq('read', false)
 }
 
 export async function markAllAsRead(): Promise<void> {
   await supabase
     .from('notifications')
-    .update({ read_at: new Date().toISOString() })
-    .is('read_at', null)
+    .update({ read: true })
+    .eq('read', false)
 }

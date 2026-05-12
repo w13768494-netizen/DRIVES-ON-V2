@@ -3,7 +3,13 @@
  * - Variables toujours requises : erreur en dev comme en prod si absentes
  * - Variables prod-only : warning en dev, erreur en prod
  */
-export function register() {
+export async function register() {
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    await import('../sentry.server.config')
+  } else if (process.env.NEXT_RUNTIME === 'edge') {
+    await import('../sentry.edge.config')
+  }
+
   const isProd = process.env.NODE_ENV === 'production'
 
   const REQUIRED_ALWAYS: string[] = [

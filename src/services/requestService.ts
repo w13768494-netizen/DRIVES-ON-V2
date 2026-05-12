@@ -343,6 +343,7 @@ export async function lockRequestAfterConfirmation(
   agencyId:     string,
   agencyName:   string,
   loueurResponse: import('@/types/request').LoueurResponse,
+  isCounterOffer = false,
 ): Promise<{ request: AssistanceRequest; wasAlreadyLocked: boolean }> {
 
   if (USE_SUPABASE) {
@@ -360,7 +361,7 @@ export async function lockRequestAfterConfirmation(
     const isMultiSend = (current.assignedAgencyIds?.length ?? 0) > 1
 
     const newEvents: RequestTimelineEvent[] = [
-      { id: generateEvtId(), type: 'confirmation', at: now, byRole: 'loueur', agencyId, message: String(loueurResponse.pricePerDay ?? '') },
+      { id: generateEvtId(), type: isCounterOffer ? 'negociation' : 'confirmation', at: now, byRole: 'loueur', agencyId, message: String(loueurResponse.pricePerDay ?? '') },
     ]
     if (isMultiSend) {
       newEvents.push({ id: generateEvtId(), type: 'attribution_fermee', at: new Date(now.getTime() + 50), byRole: 'system' })
@@ -391,7 +392,7 @@ export async function lockRequestAfterConfirmation(
   const now         = new Date()
   const isMultiSend = (request.assignedAgencyIds?.length ?? 0) > 1
   const newEvents: RequestTimelineEvent[] = [
-    { id: generateEvtId(), type: 'confirmation', at: now, byRole: 'loueur', agencyId, message: String(loueurResponse.pricePerDay ?? '') },
+    { id: generateEvtId(), type: isCounterOffer ? 'negociation' : 'confirmation', at: now, byRole: 'loueur', agencyId, message: String(loueurResponse.pricePerDay ?? '') },
   ]
   if (isMultiSend) {
     newEvents.push({ id: generateEvtId(), type: 'attribution_fermee', at: new Date(now.getTime() + 50), byRole: 'system' })
@@ -408,6 +409,26 @@ export async function lockRequestAfterConfirmation(
   }
   saveStore(store.map(r => r.id === requestId ? updated : r))
   return { request: updated, wasAlreadyLocked: false }
+}
+
+export async function refuseCounterOffer(
+  requestId: string,
+): Promise<AssistanceRequest | null> {
+  const request = await getRequestById(requestId)
+  if (!request || request.status !== 'acceptee') return null
+
+  const evt: RequestTimelineEvent = {
+    id: generateEvtId(), type: 'refus', at: new Date(), byRole: 'assisteur',
+    message: 'Contre-proposition refusée par l\'assisteur',
+  }
+  return updateRequest(requestId, {
+    status:              'envoyee',
+    confirmedAgencyId:   undefined,
+    confirmedAgencyName: undefined,
+    confirmedAt:         undefined,
+    loueurResponse:      undefined,
+    timeline:            [...request.timeline, evt],
+  })
 }
 
 export async function confirmByAssisteur(

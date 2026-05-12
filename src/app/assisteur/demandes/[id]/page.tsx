@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { getRequestById, closeRequest, validateTransfer, refuseTransfer, validatePayment } from '@/services/requestService'
+import { getRequestById, closeRequest, validateTransfer, refuseTransfer, validatePayment, confirmByAssisteur, refuseCounterOffer } from '@/services/requestService'
 import { getDocumentsByRequest } from '@/services/documentService'
 import { getRentalAgencyById } from '@/services/loueurService'
 import { getDisplayStatus } from '@/lib/displayStatus'
@@ -43,6 +43,7 @@ export default function DemandeDetailPage({
   const [loading, setLoading]             = useState(true)
   const [closing, setClosing]             = useState(false)
   const [validating, setValidating]       = useState(false)
+  const [offerAction, setOfferAction]     = useState<'validating' | 'refusing' | null>(null)
   useEffect(() => {
     getRequestById(id).then(req => {
       setRequest(req)
@@ -62,6 +63,23 @@ export default function DemandeDetailPage({
     await closeRequest(request.id)
     setRequest(prev => prev ? { ...prev, status: 'cloturee' } : prev)
     setClosing(false)
+  }
+
+  async function handleValidateOffer() {
+    if (!request) return
+    setOfferAction('validating')
+    const updated = await confirmByAssisteur(request.id)
+    if (updated) setRequest(updated)
+    setOfferAction(null)
+  }
+
+  async function handleRefuseOffer() {
+    if (!request) return
+    if (!confirm('Refuser cette contre-proposition ? La demande sera remise en attente d\'un loueur.')) return
+    setOfferAction('refusing')
+    const updated = await refuseCounterOffer(request.id)
+    if (updated) setRequest(updated)
+    setOfferAction(null)
   }
 
   async function handleValidatePayment() {
@@ -196,6 +214,17 @@ export default function DemandeDetailPage({
           transfer={pendingTransfer}
           onValidate={handleValidateTransfer}
           onRefuse={handleRefuseTransfer}
+        />
+      )}
+
+      {/* ── Validation contre-proposition ── */}
+      {request.status === 'acceptee' && resp && (
+        <CounterOfferValidationCard
+          response={resp}
+          durationDays={request.durationDays}
+          offerAction={offerAction}
+          onValidate={handleValidateOffer}
+          onRefuse={handleRefuseOffer}
         />
       )}
 
@@ -366,6 +395,90 @@ export default function DemandeDetailPage({
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Validation contre-proposition ────────────────────────────────────────────
+
+function CounterOfferValidationCard({
+  response, durationDays, offerAction, onValidate, onRefuse,
+}: {
+  response:    NonNullable<AssistanceRequest['loueurResponse']>
+  durationDays: number
+  offerAction: 'validating' | 'refusing' | null
+  onValidate:  () => void
+  onRefuse:    () => void
+}) {
+  const total = response.pricePerDay !== undefined
+    ? response.pricePerDay * durationDays
+    : null
+
+  return (
+    <div className="rounded-2xl border-2 border-teal-300 overflow-hidden">
+      <div className="h-1 w-full bg-teal-500" />
+      <div className="bg-teal-50 p-5 space-y-4">
+        <div className="flex items-center gap-2 text-teal-700 font-semibold">
+          <Euro className="w-5 h-5 shrink-0" />
+          Contre-proposition du loueur — validation requise
+        </div>
+
+        <div className="flex items-baseline gap-3">
+          {response.pricePerDay !== undefined ? (
+            <>
+              <span className="text-3xl font-black text-teal-700 tabular-nums">
+                {response.pricePerDay} €/j
+              </span>
+              {total !== null && (
+                <span className="text-sm text-slate-500">
+                  = <strong className="text-slate-700">{total} €</strong> pour {durationDays} jour{durationDays > 1 ? 's' : ''}
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="text-sm text-slate-500 italic">Tarif non précisé</span>
+          )}
+        </div>
+
+        {(response.vehicleModel || response.message) && (
+          <div className="space-y-0.5">
+            {response.vehicleModel && (
+              <p className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                <Car className="w-4 h-4 text-slate-400" />
+                {response.vehicleModel}
+              </p>
+            )}
+            {response.message && (
+              <p className="text-sm text-slate-600 italic">"{response.message}"</p>
+            )}
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            onClick={onValidate}
+            disabled={offerAction !== null}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-bold transition-colors disabled:opacity-60"
+          >
+            {offerAction === 'validating'
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <CheckCircle2 className="w-5 h-5" />
+            }
+            {offerAction === 'validating' ? 'Validation…' : 'Valider ce tarif'}
+          </button>
+          <button
+            onClick={onRefuse}
+            disabled={offerAction !== null}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-red-300 text-red-600 bg-white hover:bg-red-50 text-sm font-semibold transition-colors disabled:opacity-60"
+          >
+            {offerAction === 'refusing'
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <XCircle className="w-4 h-4" />
+            }
+            {offerAction === 'refusing' ? 'Refus…' : 'Refuser la contre-proposition'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

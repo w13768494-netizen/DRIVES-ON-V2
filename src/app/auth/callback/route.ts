@@ -2,6 +2,7 @@ import { type CookieOptions, createServerClient } from '@supabase/ssr'
 import { NextResponse }     from 'next/server'
 import { cookies }          from 'next/headers'
 import type { NextRequest } from 'next/server'
+import * as Sentry          from '@sentry/nextjs'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
@@ -32,6 +33,11 @@ export async function GET(request: NextRequest) {
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) return NextResponse.redirect(`${origin}${next}`)
+    Sentry.captureEvent({
+      message: '[auth/callback] exchangeCodeForSession failed',
+      level:   'warning',
+      extra:   { errorMsg: error.message },
+    })
   }
 
   // Flux invitation email (token_hash + type=invite)
@@ -41,6 +47,11 @@ export async function GET(request: NextRequest) {
       type: type as 'invite' | 'email' | 'recovery' | 'email_change',
     })
     if (!error) return NextResponse.redirect(`${origin}${next}`)
+    Sentry.captureEvent({
+      message: '[auth/callback] verifyOtp failed',
+      level:   'warning',
+      extra:   { type, errorMsg: error.message },
+    })
   }
 
   return NextResponse.redirect(`${origin}/login?error=auth_callback_failed`)

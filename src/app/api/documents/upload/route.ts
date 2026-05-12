@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse }              from 'next/server'
 import { supabaseAdmin }                          from '@/lib/supabase/admin'
 import { requireAuth }                            from '@/lib/requireAuth'
+import * as Sentry                                from '@sentry/nextjs'
 import { canAccessRequest, rowToResponse }        from '@/lib/documents/helpers'
 import type { DocumentRow }                       from '@/lib/documents/helpers'
 import type { RequestDocumentType, RequestDocumentOwner } from '@/types/requestDocument'
@@ -206,8 +207,14 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (dbError || !row) {
-    // Rollback : supprimer le fichier uploadé pour éviter les orphelins
-    await supabaseAdmin.storage.from('request-documents').remove([storagePath])
+    const { error: removeErr } = await supabaseAdmin.storage
+      .from('request-documents')
+      .remove([storagePath])
+    if (removeErr) {
+      Sentry.captureException(new Error(`Storage orphan: rollback failed for ${storagePath}`), {
+        extra: { storagePath, dbError: dbError?.message },
+      })
+    }
     return NextResponse.json(
       { error: `Erreur base de données : ${dbError?.message ?? 'inconnue'}` },
       { status: 500 },

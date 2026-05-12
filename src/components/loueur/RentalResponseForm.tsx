@@ -284,7 +284,7 @@ function NegotiationResponseForm({ request, onSubmit, disabled, catalogPricePerD
 
             <div className="flex gap-2">
               <button
-                onClick={() => submit({ type: 'accepter', pricePerDay: counterNum, vehicleModel: vehicleModel.trim() || undefined, message: message.trim() || undefined })}
+                onClick={() => submit({ type: 'contre_proposition', pricePerDay: counterNum, vehicleModel: vehicleModel.trim() || undefined, message: message.trim() || undefined })}
                 disabled={submitting || disabled || !counterValid}
                 className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-bold transition-colors disabled:opacity-60"
               >
