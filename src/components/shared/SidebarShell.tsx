@@ -41,7 +41,6 @@ const NAV: Record<'assisteur' | 'loueur', NavItem[]> = {
   assisteur: [
     { href: '/assisteur',                    icon: 'dashboard', label: 'Tableau de bord', exact: true },
     { href: '/assisteur/nouvelle-demande',   icon: 'plus',      label: 'Nouvelle demande', cta: true  },
-    { href: '/assisteur/utilisateurs',       icon: 'users',     label: 'Utilisateurs', adminOnly: true },
   ],
   loueur: [
     { href: '/loueur/dashboard',      icon: 'dashboard', label: 'Tableau de bord', exact: true },

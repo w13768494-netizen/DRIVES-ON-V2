@@ -517,7 +517,7 @@ export async function refuseTransfer(
     id: generateEvtId(), type: 'transfert_refuse', at: new Date(), byRole: 'assisteur',
   }
   return updateRequest(requestId, {
-    status: 'recue' as RequestStatus,
+    status: 'envoyee' as RequestStatus,
     transfers: request.transfers.map(t =>
       t.id === transferId ? { ...t, status: 'refuse' as const } : t
     ),
