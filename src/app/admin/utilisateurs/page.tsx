@@ -1,299 +1,456 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 import {
-  Plus, ShieldCheck, Truck, Copy, Check, ToggleLeft, ToggleRight,
-  Building2, Mail, Phone, Clock, Loader2, Eye, EyeOff, UserCircle,
-  ChevronDown, ChevronRight, Users,
+  Plus, Search, Loader2, Users, X, Building2, Mail, Phone,
+  ShieldCheck, Truck, Shield, MoreVertical, Check,
+  UserX, UserCheck, Trash2, AlertTriangle, Pencil,
 } from 'lucide-react'
-import {
-  getAllUsers, createUser, updateUser, generateAccessCode,
-} from '@/services/assistanceUserService'
-import {
-  ASSISTANCE_USER_ROLE_LABELS, ASSISTANCE_USER_ROLE_COLORS,
-  type AssistanceUser, type AssistanceUserRole,
-} from '@/types/assistanceUser'
-import { format } from 'date-fns'
-import { fr } from 'date-fns/locale'
-import type { AdminAgency } from '@/app/api/admin/agencies/route'
+import type { AdminUser, AdminUserRole } from '@/types/adminUser'
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Constants ──────────────────────────────────────────────────────────────────
 
-function CodeCell({ code }: { code: string }) {
-  const [copied, setCopied]   = useState(false)
-  const [visible, setVisible] = useState(false)
-  function copy() {
-    navigator.clipboard.writeText(code)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-  return (
-    <div className="flex items-center gap-1">
-      <span className={`font-mono text-xs px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 select-all transition-all ${!visible ? 'blur-[3px]' : ''}`}>
-        {code}
-      </span>
-      <button onClick={() => setVisible(v => !v)} className="p-1 text-slate-400 hover:text-slate-600 transition-colors">
-        {visible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-      </button>
-      <button onClick={copy} className="p-1 text-slate-400 hover:text-slate-600 transition-colors">
-        {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
-      </button>
-    </div>
-  )
+type Filter = 'tous' | 'loueur' | 'assisteur' | 'suspendu'
+
+const ROLE_LABELS: Record<AdminUserRole, string> = {
+  admin:     'Admin',
+  loueur:    'Loueur',
+  assisteur: 'Assisteur',
 }
 
-// ── Groupe assisteur (une société = un accordion) ─────────────────────────────
+const ROLE_COLORS: Record<AdminUserRole, string> = {
+  admin:     'bg-purple-50 text-purple-700 border border-purple-200',
+  loueur:    'bg-orange-50 text-orange-700 border border-orange-200',
+  assisteur: 'bg-blue-50 text-blue-700 border border-blue-200',
+}
 
-function AssisteurGroup({
-  companyName, users, onToggle, onAdd,
+// ── User Row ──────────────────────────────────────────────────────────────────
+
+function UserRow({
+  user, isSelf, onEdit, onRefresh,
 }: {
-  companyName: string
-  users: AssistanceUser[]
-  onToggle: () => void
-  onAdd: (companyName: string) => void
+  user:      AdminUser
+  isSelf:    boolean
+  onEdit:    () => void
+  onRefresh: () => void
 }) {
-  const [open, setOpen] = useState(true)
-  const active = users.filter(u => u.active).length
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [acting,   setActing]   = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node))
+        setMenuOpen(false)
+    }
+    if (menuOpen) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpen])
+
+  async function toggleActive() {
+    setActing(true)
+    setMenuOpen(false)
+    await fetch(`/api/admin/users/${user.id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ action: user.is_active ? 'suspend' : 'reactivate' }),
+    })
+    setActing(false)
+    onRefresh()
+  }
+
+  const roleIcon =
+    user.role === 'loueur'    ? <Truck      className="w-4 h-4" /> :
+    user.role === 'admin'     ? <Shield     className="w-4 h-4" /> :
+                                <ShieldCheck className="w-4 h-4" />
+  const roleIconColor =
+    user.role === 'loueur'    ? 'text-orange-500' :
+    user.role === 'admin'     ? 'text-purple-500' : 'text-blue-500'
+  const roleBg =
+    user.role === 'loueur'    ? 'bg-orange-50' :
+    user.role === 'admin'     ? 'bg-purple-50' : 'bg-blue-50'
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      {/* En-tête société */}
-      <div
-        onClick={() => setOpen(v => !v)}
-        className="flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50/70 transition-colors cursor-pointer"
-      >
-        <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-          <Building2 className="w-4 h-4 text-blue-500" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-black text-slate-900 truncate">{companyName}</p>
-          <p className="text-xs text-slate-400">
-            {users.length} compte{users.length > 1 ? 's' : ''}
-            {active < users.length && <span className="text-slate-300"> · {users.length - active} désactivé{users.length - active > 1 ? 's' : ''}</span>}
-          </p>
-        </div>
-        <button
-          onClick={e => { e.stopPropagation(); onAdd(companyName) }}
-          title="Ajouter un compte"
-          className="p-1.5 rounded-lg text-blue-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-        </button>
-        {open ? <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
+    <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex items-center gap-4 transition-opacity ${!user.is_active ? 'opacity-60' : ''}`}>
+
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${roleBg}`}>
+        <span className={roleIconColor}>{roleIcon}</span>
       </div>
 
-      {/* Liste des utilisateurs */}
-      {open && (
-        <div className="border-t border-slate-100 divide-y divide-slate-100">
-          {users.map(user => (
-            <div key={user.id} className={`flex items-center gap-3 px-4 py-3 transition-all ${!user.active ? 'opacity-50' : ''}`}>
-              <div className="w-7 h-7 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                <UserCircle className="w-4 h-4 text-blue-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-semibold text-slate-800">{user.firstName} {user.lastName}</span>
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${ASSISTANCE_USER_ROLE_COLORS[user.role]}`}>
-                    {ASSISTANCE_USER_ROLE_LABELS[user.role]}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 mt-0.5 text-[11px] text-slate-400 flex-wrap">
-                  <span className="flex items-center gap-1"><Mail className="w-2.5 h-2.5" />{user.email}</span>
-                  {user.phone && <span className="flex items-center gap-1"><Phone className="w-2.5 h-2.5" />{user.phone}</span>}
-                  {user.lastLoginAt && (
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-2.5 h-2.5" />
-                      {format(new Date(user.lastLoginAt), "d MMM 'à' HH'h'mm", { locale: fr })}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <CodeCell code={user.accessCode} />
-                <button onClick={() => { updateUser(user.id, { active: !user.active }); onToggle() }} className="text-slate-300 hover:text-slate-600 transition-colors">
-                  {user.active ? <ToggleRight className="w-5 h-5 text-blue-500" /> : <ToggleLeft className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Carte agence loueur (données Supabase) ────────────────────────────────────
-
-function AgencyCard({ agency }: { agency: AdminAgency }) {
-  return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex items-center gap-4">
-      <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
-        <Truck className="w-4 h-4 text-brand-500" />
-      </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-black text-slate-900">{agency.agency_name}</span>
-          {agency.city && <span className="text-xs text-slate-400">· {agency.city}</span>}
-          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-            agency.is_available ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'
-          }`}>
-            {agency.is_available ? 'Disponible' : 'Indisponible'}
+          <span className="text-sm font-bold text-slate-900">{user.full_name}</span>
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${ROLE_COLORS[user.role]}`}>
+            {ROLE_LABELS[user.role]}
           </span>
+          {user.role === 'loueur' && (
+            <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
+              <Building2 className="w-2.5 h-2.5" />
+              {user.agency_count} agence{user.agency_count !== 1 ? 's' : ''}
+            </span>
+          )}
+          {isSelf && <span className="text-[10px] text-slate-400">(vous)</span>}
         </div>
         <div className="flex items-center gap-3 mt-0.5 text-[11px] text-slate-400 flex-wrap">
-          {agency.contact_name && (
-            <span className="flex items-center gap-1"><UserCircle className="w-2.5 h-2.5" />{agency.contact_name}</span>
-          )}
-          {agency.email && (
-            <span className="flex items-center gap-1"><Mail className="w-2.5 h-2.5" />{agency.email}</span>
-          )}
-          {agency.phone && (
-            <span className="flex items-center gap-1"><Phone className="w-2.5 h-2.5" />{agency.phone}</span>
-          )}
-          {agency.service_radius_km != null && (
-            <span className="text-slate-300">· {agency.service_radius_km} km</span>
-          )}
+          <span className="flex items-center gap-1"><Mail className="w-2.5 h-2.5" />{user.email}</span>
+          {user.company_name && <span className="text-slate-300">· {user.company_name}</span>}
+          {user.phone && <span className="flex items-center gap-1"><Phone className="w-2.5 h-2.5" />{user.phone}</span>}
         </div>
+      </div>
+
+      <div className="shrink-0 flex items-center gap-1">
+        <span className={`w-1.5 h-1.5 rounded-full ${user.is_active ? 'bg-green-400' : 'bg-slate-300'}`} />
+        <span className={`text-[11px] font-medium ${user.is_active ? 'text-green-600' : 'text-slate-400'}`}>
+          {user.is_active ? 'Actif' : 'Suspendu'}
+        </span>
+      </div>
+
+      <div className="shrink-0 flex items-center gap-1">
+        <button
+          onClick={onEdit}
+          title="Modifier"
+          className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+
+        {!isSelf && (
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen(v => !v)}
+              className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              {acting
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <MoreVertical className="w-4 h-4" />}
+            </button>
+
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-lg py-1 z-10">
+                <button
+                  onClick={toggleActive}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
+                    user.is_active
+                      ? 'text-amber-600 hover:bg-amber-50'
+                      : 'text-green-600 hover:bg-green-50'
+                  }`}
+                >
+                  {user.is_active
+                    ? <><UserX className="w-3.5 h-3.5" /> Suspendre</>
+                    : <><UserCheck className="w-3.5 h-3.5" /> Réactiver</>}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-// ── Modal création assisteur ──────────────────────────────────────────────────
+// ── Edit Drawer ────────────────────────────────────────────────────────────────
 
-const ROLES: AssistanceUserRole[] = ['admin', 'superviseur', 'charge_assistance']
+function EditDrawer({
+  user, currentId, onClose, onSaved,
+}: {
+  user:      AdminUser
+  currentId: string
+  onClose:   () => void
+  onSaved:   () => void
+}) {
+  const [fullName,       setFullName]       = useState(user.full_name)
+  const [companyName,    setCompanyName]    = useState(user.company_name ?? '')
+  const [phone,          setPhone]          = useState(user.phone ?? '')
+  const [email,          setEmail]          = useState(user.email)
+  const [role,           setRole]           = useState<AdminUserRole>(user.role)
+  const [saving,         setSaving]         = useState(false)
+  const [error,          setError]          = useState<string | null>(null)
+  const [showDelConfirm, setShowDelConfirm] = useState(false)
+  const [deleting,       setDeleting]       = useState(false)
 
-function AssisteurModal({ prefillCompany, onClose, onCreated }: { prefillCompany?: string; onClose: () => void; onCreated: () => void }) {
-  const [company, setCompany]     = useState(prefillCompany ?? '')
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName]   = useState('')
-  const [email, setEmail]         = useState('')
-  const [phone, setPhone]         = useState('')
-  const [role, setRole]           = useState<AssistanceUserRole>('charge_assistance')
-  const [loading, setLoading]     = useState(false)
+  const isSelf       = user.id === currentId
+  const emailChanged = email !== user.email
 
-  const inputCls = 'w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400 transition-all'
-  const valid = company.trim() && firstName.trim() && lastName.trim() && email.trim()
+  const inputCls = 'w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 transition-all'
 
-  async function handleCreate() {
-    if (!valid) return
-    setLoading(true)
-    await new Promise(r => setTimeout(r, 400))
-    const username   = `${firstName.trim().toLowerCase()}.${lastName.trim().toLowerCase()}`.replace(/\s+/g, '')
-    const accessCode = generateAccessCode(firstName.trim(), lastName.trim())
-    createUser({ companyId: `ac-${Date.now()}`, companyName: company.trim(), firstName: firstName.trim(), lastName: lastName.trim(), username, email: email.trim(), phone: phone.trim() || undefined, role, active: true, accessCode })
-    setLoading(false)
-    onCreated()
-    onClose()
+  async function handleSave() {
+    setSaving(true)
+    setError(null)
+
+    const body: Record<string, unknown> = {}
+    if (fullName    !== user.full_name)               body.full_name    = fullName
+    if (companyName !== (user.company_name ?? ''))    body.company_name = companyName || null
+    if (phone       !== (user.phone ?? ''))           body.phone        = phone || null
+    if (email       !== user.email)                   body.email        = email
+    if (role        !== user.role && !isSelf)         body.role         = role
+
+    if (Object.keys(body).length === 0) { onClose(); return }
+
+    const res  = await fetch(`/api/admin/users/${user.id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(body),
+    })
+    const data = await res.json()
+
+    if (!res.ok) {
+      setError(data.error ?? 'Erreur lors de la sauvegarde')
+      setSaving(false)
+      return
+    }
+    onSaved()
+  }
+
+  async function handleSuspend() {
+    setSaving(true)
+    await fetch(`/api/admin/users/${user.id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ action: user.is_active ? 'suspend' : 'reactivate' }),
+    })
+    onSaved()
+  }
+
+  async function handleDelete() {
+    setDeleting(true)
+    const res  = await fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' })
+    const data = await res.json()
+    if (!res.ok) {
+      setError(data.error ?? 'Erreur lors de la suppression')
+      setShowDelConfirm(false)
+      setDeleting(false)
+      return
+    }
+    onSaved()
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
-        <p className="text-sm font-bold text-slate-800 flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-blue-500" /> Nouveau compte Assisteur
-        </p>
+    <>
+      <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]" onClick={onClose} />
 
-        <div className="bg-blue-50 rounded-xl p-3">
-          <label className="text-xs font-bold text-blue-700 flex items-center gap-1.5 mb-1.5">
-            <Building2 className="w-3.5 h-3.5" /> Compagnie d'assurance *
-          </label>
-          <input value={company} onChange={e => setCompany(e.target.value)} placeholder="Ex : Mutualia, AXA, Groupama…"
-            className="w-full px-3 py-2 rounded-lg border border-blue-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 transition-all font-medium" />
+      <div className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[440px] bg-white border-l border-slate-200 shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-slate-900 truncate">{user.full_name}</p>
+            <p className="text-xs text-slate-400 mt-0.5 truncate">{user.email}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors ml-2 shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+
           <div>
-            <label className="text-xs font-semibold text-slate-600 block mb-1">Prénom *</label>
-            <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Jean" className={inputCls} />
+            <label className="text-xs font-semibold text-slate-500 block mb-1.5">Nom complet</label>
+            <input value={fullName} onChange={e => setFullName(e.target.value)} className={inputCls} />
           </div>
+
           <div>
-            <label className="text-xs font-semibold text-slate-600 block mb-1">Nom *</label>
-            <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="DUPONT" className={inputCls} />
+            <label className="text-xs font-semibold text-slate-500 block mb-1.5">Société</label>
+            <input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="—" className={inputCls} />
           </div>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-slate-600 block mb-1">Email *</label>
-          <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="jean.dupont@compagnie.fr" className={inputCls} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
+
           <div>
-            <label className="text-xs font-semibold text-slate-600 block mb-1">Téléphone</label>
-            <input value={phone} onChange={e => setPhone(e.target.value)} type="tel" placeholder="01 23 45 67 89" className={inputCls} />
+            <label className="text-xs font-semibold text-slate-500 block mb-1.5">Téléphone</label>
+            <input value={phone} onChange={e => setPhone(e.target.value)} type="tel" placeholder="—" className={inputCls} />
           </div>
+
           <div>
-            <label className="text-xs font-semibold text-slate-600 block mb-1">Rôle</label>
-            <select value={role} onChange={e => setRole(e.target.value as AssistanceUserRole)} className={inputCls}>
-              {ROLES.map(r => <option key={r} value={r}>{ASSISTANCE_USER_ROLE_LABELS[r]}</option>)}
+            <label className="text-xs font-semibold text-slate-500 block mb-1.5">Email</label>
+            <input value={email} onChange={e => setEmail(e.target.value)} type="email" className={inputCls} />
+            {emailChanged && (
+              <p className="text-[11px] text-amber-600 mt-1.5 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3 shrink-0" />
+                Un email de confirmation sera envoyé à la nouvelle adresse.
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-500 block mb-1.5">
+              Rôle
+              {isSelf && (
+                <span className="ml-1.5 text-slate-300 font-normal text-[11px]">
+                  (non modifiable — votre compte)
+                </span>
+              )}
+            </label>
+            <select
+              value={role}
+              onChange={e => setRole(e.target.value as AdminUserRole)}
+              disabled={isSelf}
+              className={`${inputCls} ${isSelf ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <option value="assisteur">Assisteur</option>
+              <option value="loueur">Loueur</option>
+              <option value="admin">Admin</option>
             </select>
           </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-xs text-red-700 flex items-start gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              {error}
+            </div>
+          )}
+
+          {/* Account actions */}
+          <div className="border-t border-slate-100 pt-4 space-y-2">
+            <p className="text-xs font-semibold text-slate-400 mb-3">Actions compte</p>
+
+            <button
+              onClick={handleSuspend}
+              disabled={saving || isSelf}
+              className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition-colors disabled:opacity-50 ${
+                user.is_active
+                  ? 'border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100'
+                  : 'border-green-200 text-green-700 bg-green-50 hover:bg-green-100'
+              }`}
+            >
+              {user.is_active
+                ? <><UserX className="w-4 h-4" /> Suspendre</>
+                : <><UserCheck className="w-4 h-4" /> Réactiver</>}
+            </button>
+
+            {!showDelConfirm ? (
+              <button
+                onClick={() => setShowDelConfirm(true)}
+                disabled={isSelf}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-200 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" /> Supprimer
+              </button>
+            ) : (
+              <div className="border border-red-200 bg-red-50 rounded-xl p-3.5 space-y-2.5">
+                <p className="text-xs font-semibold text-red-700">Confirmer la suppression ?</p>
+                <p className="text-[11px] text-red-500 leading-relaxed">
+                  Si des demandes ou agences sont liées, le compte sera anonymisé et suspendu.
+                  Sinon, il sera définitivement supprimé.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                  >
+                    {deleting
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : <Trash2 className="w-3.5 h-3.5" />}
+                    Confirmer
+                  </button>
+                  <button
+                    onClick={() => setShowDelConfirm(false)}
+                    className="flex-1 py-2 rounded-lg border border-red-200 text-xs text-red-600 hover:bg-white transition-colors"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-        <p className="text-[11px] text-slate-400">Un identifiant et un code d'accès seront générés automatiquement.</p>
-        <div className="flex gap-2 pt-1">
-          <button onClick={handleCreate} disabled={loading || !valid}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:opacity-50 transition-colors">
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Créer
+
+        {/* Footer */}
+        <div className="flex gap-2 px-6 py-4 border-t border-slate-100">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            Enregistrer
           </button>
-          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+          >
             Annuler
           </button>
         </div>
       </div>
-    </div>
+    </>
   )
 }
 
 // ── Page principale ───────────────────────────────────────────────────────────
 
-type Tab = 'assisteur' | 'loueur'
-
 export default function AdminUtilisateursPage() {
-  const [tab, setTab]               = useState<Tab>('assisteur')
-  const [assisteurs, setAssisteurs] = useState<AssistanceUser[]>([])
-  const [tick, setTick]             = useState(0)
-  const [modal, setModal]           = useState<null | 'assisteur'>(null)
-  const [prefillCompany, setPrefillCompany] = useState<string | undefined>()
+  const [users,     setUsers]     = useState<AdminUser[]>([])
+  const [loading,   setLoading]   = useState(true)
+  const [filter,    setFilter]    = useState<Filter>('tous')
+  const [search,    setSearch]    = useState('')
+  const [editUser,  setEditUser]  = useState<AdminUser | null>(null)
+  const [currentId, setCurrentId] = useState('')
 
-  // Agences loueur Supabase
-  const [agencies,        setAgencies]        = useState<AdminAgency[]>([])
-  const [agenciesLoading, setAgenciesLoading] = useState(false)
-
-  useEffect(() => {
-    setAssisteurs(getAllUsers())
-  }, [tick])
-
-  useEffect(() => {
-    setAgenciesLoading(true)
-    fetch('/api/admin/agencies')
-      .then(r => r.json())
-      .then((data: AdminAgency[]) => { setAgencies(data); setAgenciesLoading(false) })
-      .catch(() => setAgenciesLoading(false))
+  const load = useCallback(async () => {
+    setLoading(true)
+    const data = await fetch('/api/admin/users').then(r => r.json()).catch(() => [])
+    setUsers(Array.isArray(data) ? data : [])
+    setLoading(false)
   }, [])
 
-  const refresh = () => setTick(t => t + 1)
+  useEffect(() => { load() }, [load])
 
-  // Regrouper les assisteurs par société
-  const assisteurGroups = assisteurs.reduce<Record<string, AssistanceUser[]>>((acc, u) => {
-    const key = u.companyName ?? 'Mutualia Assurances'
-    acc[key] = acc[key] ? [...acc[key], u] : [u]
-    return acc
-  }, {})
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data }) => {
+      if (data.user) setCurrentId(data.user.id)
+    })
+  }, [])
 
-  function openAddAssisteur(company?: string) {
-    setPrefillCompany(company)
-    setModal('assisteur')
+  // Filter counts
+  const counts: Record<Filter, number> = {
+    tous:      users.length,
+    loueur:    users.filter(u => u.role === 'loueur').length,
+    assisteur: users.filter(u => u.role === 'assisteur').length,
+    suspendu:  users.filter(u => !u.is_active).length,
+  }
+
+  const filtered = users
+    .filter(u => {
+      if (filter === 'loueur')    return u.role === 'loueur'
+      if (filter === 'assisteur') return u.role === 'assisteur'
+      if (filter === 'suspendu')  return !u.is_active
+      return true
+    })
+    .filter(u => {
+      if (!search.trim()) return true
+      const q = search.toLowerCase()
+      return (
+        u.full_name.toLowerCase().includes(q)           ||
+        u.email.toLowerCase().includes(q)               ||
+        (u.company_name?.toLowerCase() ?? '').includes(q)
+      )
+    })
+
+  function handleSaved() {
+    load()
+    setEditUser(null)
+  }
+
+  const FILTER_LABELS: Record<Filter, React.ReactNode> = {
+    tous:      'Tous',
+    loueur:    <><Truck      className="w-3 h-3" /> Loueurs</>,
+    assisteur: <><ShieldCheck className="w-3 h-3" /> Assisteurs</>,
+    suspendu:  <><UserX      className="w-3 h-3" /> Suspendus</>,
   }
 
   return (
     <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-6 py-10 gap-6">
 
+      {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-black text-slate-900">Utilisateurs</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Gérez les accès par société et par agence.
-          </p>
+          <p className="text-sm text-slate-500 mt-0.5">Gérez les comptes et les accès.</p>
         </div>
         <Link
           href="/admin/utilisateurs/nouveau"
@@ -303,68 +460,71 @@ export default function AdminUtilisateursPage() {
         </Link>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 shadow-sm w-fit">
-        <button
-          onClick={() => setTab('assisteur')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-            tab === 'assisteur' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          <ShieldCheck className="w-3.5 h-3.5" /> Assisteurs
-          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${tab === 'assisteur' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
-            {Object.keys(assisteurGroups).length}
-          </span>
-        </button>
-        <button
-          onClick={() => setTab('loueur')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-            tab === 'loueur' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          <Truck className="w-3.5 h-3.5" /> Loueurs
-          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${tab === 'loueur' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
-            {agencies.length}
-          </span>
-        </button>
+      {/* Filters */}
+      <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 shadow-sm w-fit flex-wrap">
+        {(['tous', 'loueur', 'assisteur', 'suspendu'] as Filter[]).map(f => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+              filter === f
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            {FILTER_LABELS[f]}
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+              filter === f ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+            }`}>
+              {counts[f]}
+            </span>
+          </button>
+        ))}
       </div>
 
-      {/* Accordions */}
-      <div className="space-y-3">
-        {tab === 'assisteur' && Object.entries(assisteurGroups).map(([company, users]) => (
-          <AssisteurGroup
-            key={company}
-            companyName={company}
-            users={users}
-            onToggle={refresh}
-            onAdd={openAddAssisteur}
-          />
-        ))}
-        {tab === 'loueur' && agenciesLoading && (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
-          </div>
-        )}
-        {tab === 'loueur' && !agenciesLoading && agencies.map(agency => (
-          <AgencyCard key={agency.id} agency={agency} />
-        ))}
-        {tab === 'assisteur' && Object.keys(assisteurGroups).length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
-            <Users className="w-8 h-8 text-slate-300" />
-            <p className="text-sm text-slate-400">Aucune société assisteur enregistrée</p>
-          </div>
-        )}
-        {tab === 'loueur' && !agenciesLoading && agencies.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
-            <Users className="w-8 h-8 text-slate-300" />
-            <p className="text-sm text-slate-400">Aucune agence loueur enregistrée</p>
-          </div>
-        )}
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Rechercher par nom, email, société…"
+          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 transition-all"
+        />
       </div>
 
-      {/* Modals */}
-      {modal === 'assisteur' && (
-        <AssisteurModal prefillCompany={prefillCompany} onClose={() => setModal(null)} onCreated={refresh} />
+      {/* List */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+          <Users className="w-8 h-8 text-slate-300" />
+          <p className="text-sm text-slate-400">Aucun utilisateur trouvé</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map(user => (
+            <UserRow
+              key={user.id}
+              user={user}
+              isSelf={user.id === currentId}
+              onEdit={() => setEditUser(user)}
+              onRefresh={load}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Edit drawer */}
+      {editUser && (
+        <EditDrawer
+          user={editUser}
+          currentId={currentId}
+          onClose={() => setEditUser(null)}
+          onSaved={handleSaved}
+        />
       )}
     </div>
   )

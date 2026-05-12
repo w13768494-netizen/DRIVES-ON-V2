@@ -39,13 +39,16 @@ export async function middleware(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, is_active')
       .eq('id', user.id)
       .single()
 
     const [, requiredRole] = match
     if (!profile || profile.role !== requiredRole) {
       return NextResponse.redirect(new URL('/login', request.url))
+    }
+    if (profile.is_active === false) {
+      return NextResponse.redirect(new URL('/login?error=suspended', request.url))
     }
   }
 

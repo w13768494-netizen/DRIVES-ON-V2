@@ -17,7 +17,7 @@ export async function requireAuth(): Promise<AuthOk | AuthFail> {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, is_active')
     .eq('id', user.id)
     .single()
 
@@ -25,6 +25,13 @@ export async function requireAuth(): Promise<AuthOk | AuthFail> {
     return {
       ok:       false,
       response: NextResponse.json({ error: 'Profil introuvable' }, { status: 403 }),
+    }
+  }
+
+  if (!profile.is_active) {
+    return {
+      ok:       false,
+      response: NextResponse.json({ error: 'Compte suspendu' }, { status: 403 }),
     }
   }
 

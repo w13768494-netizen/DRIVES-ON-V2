@@ -7,17 +7,16 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { getAllRequests }       from '@/services/requestService'
-import { getAllUsers }          from '@/services/assistanceUserService'
 import { getCandidatures }     from '@/services/candidatureService'
 import { getDisplayStatus }    from '@/lib/displayStatus'
 import type { AssistanceRequest } from '@/types/request'
-import type { AssistanceUser }    from '@/types/assistanceUser'
 import type { Candidature }       from '@/types/candidature'
 import type { AdminAgency }       from '@/app/api/admin/agencies/route'
+import type { AdminUser }         from '@/types/adminUser'
 
 export default function AdminPlatformPage() {
   const [requests,    setRequests]    = useState<AssistanceRequest[]>([])
-  const [users,       setUsers]       = useState<AssistanceUser[]>([])
+  const [adminUsers,  setAdminUsers]  = useState<AdminUser[]>([])
   const [agencies,    setAgencies]    = useState<AdminAgency[]>([])
   const [candidatures,setCandidatures]= useState<Candidature[]>([])
   const [loading,     setLoading]     = useState(true)
@@ -25,13 +24,14 @@ export default function AdminPlatformPage() {
 
   async function load() {
     setLoading(true)
-    const [reqs, cands, agencyRes] = await Promise.all([
+    const [reqs, cands, agencyRes, usersRes] = await Promise.all([
       getAllRequests(),
       getCandidatures(),
       fetch('/api/admin/agencies').then(r => r.json()).catch(() => []) as Promise<AdminAgency[]>,
+      fetch('/api/admin/users').then(r => r.json()).catch(() => [])    as Promise<AdminUser[]>,
     ])
     setRequests(reqs)
-    setUsers(getAllUsers())
+    setAdminUsers(Array.isArray(usersRes) ? usersRes : [])
     setAgencies(agencyRes)
     setCandidatures(cands)
     setRefreshedAt(new Date())
@@ -61,7 +61,8 @@ export default function AdminPlatformPage() {
   const confirmed       = requests.filter(r => r.confirmedAt)
   const tauxConfirmation= totalReqs > 0 ? Math.round((confirmed.length / totalReqs) * 100) : 0
 
-  const activeUsers     = users.filter(u => u.active !== false).length
+  const assisteurs      = adminUsers.filter(u => u.role === 'assisteur')
+  const activeUsers     = assisteurs.filter(u => u.is_active).length
   const activeLoueurs   = agencies.filter(a => a.is_available).length
   const pendingCands    = candidatures.filter(c => c.status === 'en_attente').length
 
@@ -123,7 +124,7 @@ export default function AdminPlatformPage() {
           icon={<Users className="w-5 h-5" />}
           label="Assisteurs actifs"
           value={activeUsers}
-          sub={`${users.length} comptes total`}
+          sub={`${assisteurs.length} compte${assisteurs.length !== 1 ? 's' : ''} total`}
           color="green"
           loading={loading}
         />
