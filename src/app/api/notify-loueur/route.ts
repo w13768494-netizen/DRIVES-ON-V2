@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse }                       from 'next/server'
-import { createClient as createServerClient }              from '@/lib/supabase/server'
 import { supabaseAdmin }                                   from '@/lib/supabase/admin'
+import { requireAuth }                                     from '@/lib/requireAuth'
 import { VEHICLE_CATEGORY_LABELS }                         from '@/types/vehicleCategory'
 import { sendEmail }                                       from '@/lib/email'
 import { buildLoueurEmailHtml, buildLoueurEmailText }      from '@/lib/loueurEmail'
@@ -8,21 +8,10 @@ import { getAppUrl }                                       from '@/lib/appUrl'
 import type { AssistanceRequest }                          from '@/types/request'
 
 export async function POST(req: NextRequest) {
-  // Auth : réservé aux assisteurs et admins
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
 
-  if (!user) {
-    return NextResponse.json({ ok: false, error: 'Non authentifié' }, { status: 401 })
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile || !(['assisteur', 'admin'] as string[]).includes(profile.role)) {
+  if (auth.role !== 'assisteur' && auth.role !== 'admin') {
     return NextResponse.json({ ok: false, error: 'Accès non autorisé' }, { status: 403 })
   }
 

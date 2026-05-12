@@ -14,6 +14,19 @@ export async function POST(request: NextRequest) {
   const { email, full_name } = await request.json() as { email: string; full_name?: string }
   if (!email) return NextResponse.json({ error: 'Email requis' }, { status: 400 })
 
+  // Anti-spam : bloquer si un email de réinitialisation a déjà été envoyé dans les 5 dernières minutes
+  const { data: usersPage } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+  const existing = usersPage?.users.find(u => u.email === email)
+  if (existing?.recovery_sent_at) {
+    const elapsed = Date.now() - new Date(existing.recovery_sent_at).getTime()
+    if (elapsed < 5 * 60 * 1000) {
+      return NextResponse.json(
+        { error: 'Un email de réinitialisation a déjà été envoyé à cette adresse récemment. Veuillez patienter.' },
+        { status: 429 },
+      )
+    }
+  }
+
   const appUrl = getAppUrl()
 
   const { data, error } = await adminClient.auth.admin.generateLink({

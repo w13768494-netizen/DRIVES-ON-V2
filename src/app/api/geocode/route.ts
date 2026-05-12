@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth }              from '@/lib/requireAuth'
 
 export interface GeocodeResult {
   latitude:    number
@@ -7,6 +8,9 @@ export interface GeocodeResult {
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
+
   const q = req.nextUrl.searchParams.get('q')?.trim()
   if (!q) return NextResponse.json({ error: 'Paramètre q manquant' }, { status: 400 })
 

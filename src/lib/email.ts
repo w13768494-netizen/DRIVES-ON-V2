@@ -32,13 +32,13 @@ export async function sendEmail(params: {
     })
     if (!res.ok) {
       const body = await res.text()
-      console.error('[email] Postmark error', res.status, body)
+      console.error('[email] Postmark error', res.status)
       return { ok: false, error: `Postmark ${res.status}: ${body}` }
     }
     return { ok: true }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    console.error('[email] Failed to send to', params.to, msg)
+    console.error('[email] Failed to send:', msg)
     return { ok: false, error: msg }
   }
 }

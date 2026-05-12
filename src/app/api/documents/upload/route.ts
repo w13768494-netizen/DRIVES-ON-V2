@@ -24,6 +24,29 @@ const ALLOWED_TYPES_BY_OWNER: Record<RequestDocumentOwner, RequestDocumentType[]
   loueur:    ['contrat', 'etat_depart', 'etat_retour', 'facture', 'autre'],
 }
 
+// ── Magic bytes ───────────────────────────────────────────────────────────────
+
+function isValidMagicBytes(bytes: Uint8Array, mimeType: string): boolean {
+  switch (mimeType.toLowerCase()) {
+    case 'application/pdf':
+      // %PDF = 25 50 44 46
+      return bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46
+    case 'image/jpeg':
+      // FF D8 FF
+      return bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF
+    case 'image/png':
+      // 89 50 4E 47 0D 0A 1A 0A
+      return bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47
+          && bytes[4] === 0x0D && bytes[5] === 0x0A && bytes[6] === 0x1A && bytes[7] === 0x0A
+    case 'image/heic':
+    case 'image/heif':
+      // ISO Base Media File Format : box "ftyp" (66 74 79 70) à l'offset 4
+      return bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70
+    default:
+      return false
+  }
+}
+
 // ── Route ─────────────────────────────────────────────────────────────────────
 
 // POST /api/documents/upload
@@ -107,6 +130,20 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // ── Magic bytes : lecture unique du buffer ─────────────────────────────────
+  // On lit le buffer ici pour valider le contenu, puis on le réutilise pour
+  // l'upload Storage (évite une double lecture de fichiers potentiellement lourds).
+
+  const fileBuffer  = await file.arrayBuffer()
+  const headerBytes = new Uint8Array(fileBuffer.slice(0, 12))
+
+  if (!isValidMagicBytes(headerBytes, file.type)) {
+    return NextResponse.json(
+      { error: 'Le contenu du fichier ne correspond pas à son type déclaré.' },
+      { status: 400 },
+    )
+  }
+
   // ── Vérification accès à la demande ───────────────────────────────────────
 
   const { data: ar } = await supabaseAdmin
@@ -138,7 +175,7 @@ export async function POST(req: NextRequest) {
 
   const { error: uploadError } = await supabaseAdmin.storage
     .from('request-documents')
-    .upload(storagePath, await file.arrayBuffer(), {
+    .upload(storagePath, fileBuffer, {
       contentType: file.type,
       upsert:      false,
     })

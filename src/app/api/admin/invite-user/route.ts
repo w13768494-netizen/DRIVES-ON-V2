@@ -37,6 +37,18 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     if (error.message.toLowerCase().includes('already been registered')) {
+      // Anti-spam : si une invitation a déjà été envoyée dans les 5 dernières minutes, bloquer
+      const { data: usersPage } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const existing = usersPage?.users.find(u => u.email === email)
+      if (existing?.invited_at) {
+        const elapsed = Date.now() - new Date(existing.invited_at).getTime()
+        if (elapsed < 5 * 60 * 1000) {
+          return NextResponse.json(
+            { error: 'Une invitation a déjà été envoyée à cette adresse très récemment.' },
+            { status: 429 },
+          )
+        }
+      }
       return NextResponse.json({ error: 'USER_ALREADY_EXISTS' }, { status: 409 })
     }
     return NextResponse.json({ error: error.message }, { status: 400 })
