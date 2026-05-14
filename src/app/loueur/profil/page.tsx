@@ -14,18 +14,9 @@ import {
   type AgencyServiceRow, type AgencyServiceInput,
 } from '@/services/agencyServicesService'
 import {
-  getAgencyVehicleCategories, upsertAgencyVehicleCategory,
-  type AgencyVehicleCategoryRow,
-} from '@/services/agencyVehicleCategoriesService'
-import {
   STANDARD_SERVICE_TYPES, AGENCY_SERVICE_LABELS, SERVICE_PRICE_LABELS,
   type AgencyServiceType, type ServicePriceType,
 } from '@/types/agencyService'
-import {
-  TOURISME_CATEGORIES, UTILITAIRE_CATEGORIES,
-  VEHICLE_CATEGORY_LABELS, VEHICLE_CATEGORY_GROUPS,
-  type VehicleCategoryType, type PricingPackage,
-} from '@/types/vehicleCategory'
 import { getSession } from '@/services/currentSessionService'
 import type { MockSession } from '@/types/session'
 
@@ -40,12 +31,6 @@ const EMPTY_INPUT: AgencyInput = {
   contact_name: null, is_available: true,
   opening_hours_weekdays: null, opening_hours_saturday: null, opening_hours_sunday: null,
 }
-
-const DEFAULT_PACKAGES: PricingPackage[] = [
-  { label: '3 jours',  days: 3, price: 0 },
-  { label: '7 jours',  days: 7, price: 0 },
-  { label: 'Week-end', days: 2, price: 0 },
-]
 
 // ── AgencyForm ────────────────────────────────────────────────────────────────
 
@@ -420,194 +405,13 @@ function AgencyServicesPanel({ agencyId }: { agencyId: string }) {
   )
 }
 
-// ── AgencyCategoriesPanel ─────────────────────────────────────────────────────
-
-type CatState = {
-  id?:                 string
-  available:           boolean
-  stock_estimate:      number
-  daily_rate:          number
-  deposit:             number
-  included_km_per_day: number
-  extra_km_price:      number
-  packages:            PricingPackage[]
-}
-
-const DEFAULT_CAT: CatState = {
-  available: true, stock_estimate: 0, daily_rate: 0, deposit: 0,
-  included_km_per_day: 0, extra_km_price: 0, packages: DEFAULT_PACKAGES,
-}
-
-function AgencyCategoriesPanel({ agencyId }: { agencyId: string }) {
-  const [state,   setState]   = useState<Partial<Record<VehicleCategoryType, CatState>>>({})
-  const [loading, setLoading] = useState(true)
-  const [saving,  setSaving]  = useState(false)
-
-  useEffect(() => {
-    getAgencyVehicleCategories(agencyId).then(rows => {
-      const init: Partial<Record<VehicleCategoryType, CatState>> = {}
-      for (const row of rows) {
-        init[row.category] = {
-          id:                  row.id,
-          available:           row.available,
-          stock_estimate:      row.stock_estimate,
-          daily_rate:          row.daily_rate,
-          deposit:             row.deposit,
-          included_km_per_day: row.included_km_per_day,
-          extra_km_price:      row.extra_km_price,
-          packages:            row.packages?.length ? row.packages : DEFAULT_PACKAGES,
-        }
-      }
-      setState(init)
-      setLoading(false)
-    })
-  }, [agencyId])
-
-  const toggle = (cat: VehicleCategoryType) =>
-    setState(prev => {
-      const existing = prev[cat]
-      return existing
-        ? { ...prev, [cat]: { ...existing, available: !existing.available } }
-        : { ...prev, [cat]: { ...DEFAULT_CAT } }
-    })
-
-  const updCat = (cat: VehicleCategoryType, patch: Partial<CatState>) =>
-    setState(prev => ({ ...prev, [cat]: { ...prev[cat]!, ...patch } }))
-
-  const updPackagePrice = (cat: VehicleCategoryType, idx: number, price: number) => {
-    const pkgs = [...(state[cat]?.packages ?? DEFAULT_PACKAGES)]
-    pkgs[idx] = { ...pkgs[idx], price }
-    updCat(cat, { packages: pkgs })
-  }
-
-  const handleSave = async () => {
-    setSaving(true)
-    for (const [cat, s] of Object.entries(state) as [VehicleCategoryType, CatState][]) {
-      if (!s.available && !s.id) continue
-      const result = await upsertAgencyVehicleCategory(agencyId, {
-        id:                  s.id,
-        category:            cat,
-        group_type:          VEHICLE_CATEGORY_GROUPS[cat],
-        available:           s.available,
-        stock_estimate:      s.stock_estimate,
-        daily_rate:          s.daily_rate,
-        deposit:             s.deposit,
-        included_km_per_day: s.included_km_per_day,
-        extra_km_price:      s.extra_km_price,
-        packages:            s.packages,
-      })
-      if (result && !s.id) updCat(cat, { id: result.id })
-    }
-    setSaving(false)
-  }
-
-  if (loading) {
-    return <div className="py-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
-  }
-
-  const groups: { title: string; cats: VehicleCategoryType[] }[] = [
-    { title: 'Véhicules de tourisme', cats: TOURISME_CATEGORIES },
-    { title: 'Véhicules utilitaires', cats: UTILITAIRE_CATEGORIES },
-  ]
-
-  return (
-    <div className="flex flex-col gap-6">
-      {groups.map(({ title, cats }) => (
-        <div key={title}>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">{title}</p>
-          <div className="flex flex-col gap-2">
-            {cats.map(cat => {
-              const s = state[cat]
-              const on = s?.available === true
-              return (
-                <div key={cat} className="rounded-xl border border-slate-200 overflow-hidden">
-                  <div className={['flex items-center gap-3 px-4 py-3', on ? 'bg-white' : 'bg-slate-50'].join(' ')}>
-                    <button type="button" onClick={() => toggle(cat)} className="shrink-0">
-                      {on
-                        ? <ToggleRight className="w-5 h-5 text-brand-500" />
-                        : <ToggleLeft  className="w-5 h-5 text-slate-300" />}
-                    </button>
-                    <span className={['flex-1 text-sm font-medium', on ? 'text-slate-800' : 'text-slate-400'].join(' ')}>
-                      {VEHICLE_CATEGORY_LABELS[cat]}
-                    </span>
-                    {on && s && s.daily_rate > 0 && (
-                      <span className="text-xs font-semibold text-brand-600">{s.daily_rate} €/j</span>
-                    )}
-                  </div>
-
-                  {on && s && (
-                    <div className="px-4 pb-4 pt-3 border-t border-slate-100 bg-white">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-                        <div>
-                          <label className={labelCls}>Stock estimé</label>
-                          <input type="number" min="0" className={inputCls}
-                            value={s.stock_estimate}
-                            onChange={e => updCat(cat, { stock_estimate: Number(e.target.value) || 0 })} />
-                        </div>
-                        <div>
-                          <label className={labelCls}>Tarif / jour (€)</label>
-                          <input type="number" min="0" step="0.01" className={inputCls}
-                            value={s.daily_rate}
-                            onChange={e => updCat(cat, { daily_rate: Number(e.target.value) || 0 })} />
-                        </div>
-                        <div>
-                          <label className={labelCls}>Caution (€)</label>
-                          <input type="number" min="0" step="0.01" className={inputCls}
-                            value={s.deposit}
-                            onChange={e => updCat(cat, { deposit: Number(e.target.value) || 0 })} />
-                        </div>
-                        <div>
-                          <label className={labelCls}>Km inclus / jour</label>
-                          <input type="number" min="0" className={inputCls}
-                            value={s.included_km_per_day}
-                            onChange={e => updCat(cat, { included_km_per_day: Number(e.target.value) || 0 })} />
-                        </div>
-                        <div>
-                          <label className={labelCls}>Km supp. (€/km)</label>
-                          <input type="number" min="0" step="0.01" className={inputCls}
-                            value={s.extra_km_price}
-                            onChange={e => updCat(cat, { extra_km_price: Number(e.target.value) || 0 })} />
-                        </div>
-                      </div>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Forfaits</p>
-                      <div className="grid grid-cols-3 gap-3">
-                        {s.packages.map((pkg, idx) => (
-                          <div key={idx}>
-                            <label className={labelCls}>{pkg.label} (€)</label>
-                            <input type="number" min="0" step="0.01" className={inputCls}
-                              value={pkg.price}
-                              onChange={e => updPackagePrice(cat, idx, Number(e.target.value) || 0)} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      ))}
-
-      <div className="flex justify-end">
-        <button onClick={handleSave} disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold disabled:opacity-50 transition-colors">
-          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-          Enregistrer les catégories
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // ── AgencyCard ────────────────────────────────────────────────────────────────
 
-type AgencyTab = 'infos' | 'services' | 'categories'
+type AgencyTab = 'infos' | 'services'
 
 const AGENCY_TABS: { key: AgencyTab; label: string }[] = [
-  { key: 'infos',      label: 'Infos' },
-  { key: 'services',   label: 'Services' },
-  { key: 'categories', label: 'Catégories & Tarifs' },
+  { key: 'infos',    label: 'Infos' },
+  { key: 'services', label: 'Services' },
 ]
 
 function AgencyCard({
@@ -690,8 +494,7 @@ function AgencyCard({
               />
             : <AgencyInfoView agency={agency} onEdit={() => setEditing(true)} />
         )}
-        {tab === 'services'   && <AgencyServicesPanel   agencyId={agency.id} />}
-        {tab === 'categories' && <AgencyCategoriesPanel agencyId={agency.id} />}
+        {tab === 'services' && <AgencyServicesPanel agencyId={agency.id} />}
       </div>
     </div>
   )
