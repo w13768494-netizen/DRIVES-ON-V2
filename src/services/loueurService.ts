@@ -89,6 +89,21 @@ export async function getReceivedRequestById(id: string): Promise<ReceivedReques
   return agency ? buildReceivedRequest(request, agency) : null
 }
 
+function fireNotifyAssisteur(payload: {
+  requestId:   string
+  eventType:   string
+  agencyId?:   string
+  agencyName?: string
+  pricePerDay?: number
+}) {
+  if (typeof window === 'undefined') return
+  fetch('/api/notify-assisteur', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(payload),
+  }).catch(err => console.error('[respondToRequest] notify-assisteur failed:', err))
+}
+
 export async function respondToRequest(
   requestId: string,
   action:    LoueurAction,
@@ -127,6 +142,7 @@ export async function respondToRequest(
     )
     if (!accepted) return null
     const confirmed = await confirmByAssisteur(requestId)
+    fireNotifyAssisteur({ requestId, eventType: 'loueur_accepte', agencyId: aKey, agencyName: aName, pricePerDay: action.pricePerDay })
     return confirmed ?? accepted
   }
 
@@ -142,6 +158,7 @@ export async function respondToRequest(
     const { request: pending } = await lockRequestAfterConfirmation(
       requestId, aKey, aName, loueurResponse, true,
     )
+    fireNotifyAssisteur({ requestId, eventType: 'loueur_contre_propose', agencyId: aKey, agencyName: aName, pricePerDay: action.pricePerDay })
     return pending ?? null
   }
 
@@ -150,7 +167,7 @@ export async function respondToRequest(
       id: generateEvtId(), type: 'refus', at: new Date(), byRole: 'loueur',
       agencyId: aKey, message: action.message,
     }
-    return updateRequest(requestId, {
+    const updated = await updateRequest(requestId, {
       status: 'refusee',
       loueurResponse: {
         agencyId:    aKey,
@@ -160,6 +177,8 @@ export async function respondToRequest(
       },
       timeline: [...request.timeline, evt],
     })
+    fireNotifyAssisteur({ requestId, eventType: 'loueur_refuse', agencyId: aKey, agencyName: aName })
+    return updated
   }
 
   return null

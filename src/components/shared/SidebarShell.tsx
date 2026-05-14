@@ -42,6 +42,7 @@ const NAV: Record<'assisteur' | 'loueur', NavItem[]> = {
   assisteur: [
     { href: '/assisteur',                    icon: 'dashboard', label: 'Tableau de bord', exact: true },
     { href: '/assisteur/nouvelle-demande',   icon: 'plus',      label: 'Nouvelle demande', cta: true  },
+    { href: '/assisteur/notifications',      icon: 'bell',      label: 'Notifications',   hasBadge: true },
   ],
   loueur: [
     { href: '/loueur/dashboard',      icon: 'dashboard', label: 'Tableau de bord', exact: true },
@@ -71,9 +72,8 @@ export function SidebarShell({ role, children }: Props) {
     if (localStorage.getItem('driveson:sidebar') === 'collapsed') setCollapsed(true)
   }, [])
 
-  // Polling notifications toutes les 30s (loueur uniquement)
+  // Polling notifications toutes les 30s
   useEffect(() => {
-    if (role !== 'loueur') return
     const load = () => getUnreadCount().then(setUnreadCount)
     load()
     const id = setInterval(load, 30_000)

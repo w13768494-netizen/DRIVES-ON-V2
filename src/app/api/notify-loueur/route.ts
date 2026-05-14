@@ -42,10 +42,10 @@ export async function POST(req: NextRequest) {
   let emailsFailed = 0
 
   for (const agencyId of agencyIds) {
-    // Requête unique — owner_id + email + agency_name ; gère UUID et external_id
+    // Requête unique — id + owner_id + email + agency_name ; gère UUID et external_id
     const { data: agencyRow } = await supabaseAdmin
       .from('rental_agencies')
-      .select('owner_id, email, agency_name')
+      .select('id, owner_id, email, agency_name')
       .or(`id.eq.${agencyId},external_id.eq.${agencyId}`)
       .maybeSingle()
 
@@ -68,8 +68,30 @@ export async function POST(req: NextRequest) {
 
     // ── 2. Email ────────────────────────────────────────────────────────────
     if (agencyRow?.email) {
-      const requestUrl   = `${appUrl}/loueur/demandes/${request.id}`
-      const emailParams  = {
+      const requestUrl = `${appUrl}/loueur/demandes/${request.id}`
+
+      // Prix effectif : prix cible assisteur en priorité, sinon grille tarifaire du loueur
+      let effectivePrice: number | null = request.targetPricePerDay ?? null
+      if (!effectivePrice && agencyRow.id) {
+        const { data: catRow } = await supabaseAdmin
+          .from('agency_vehicle_categories')
+          .select('daily_rate, tarif_1_4, tarif_5_7, tarif_8_14, tarif_15_21, tarif_22_29, forfait_30_jours')
+          .eq('agency_id', agencyRow.id)
+          .eq('category', request.vehicleCategory)
+          .maybeSingle()
+        if (catRow) {
+          const d        = request.durationDays
+          const fallback = catRow.daily_rate > 0 ? catRow.daily_rate : null
+          if      (d >= 30) effectivePrice = catRow.forfait_30_jours != null ? catRow.forfait_30_jours / 30 : fallback
+          else if (d >= 22) effectivePrice = catRow.tarif_22_29 ?? fallback
+          else if (d >= 15) effectivePrice = catRow.tarif_15_21 ?? fallback
+          else if (d >= 8)  effectivePrice = catRow.tarif_8_14  ?? fallback
+          else if (d >= 5)  effectivePrice = catRow.tarif_5_7   ?? fallback
+          else              effectivePrice = catRow.tarif_1_4   ?? fallback
+        }
+      }
+
+      const emailParams = {
         agencyName:       agencyRow.agency_name,
         dossierNumber:    request.dossierNumber,
         address,
@@ -79,12 +101,12 @@ export async function POST(req: NextRequest) {
         maxExtensionDays: request.maxExtensionDays,
         coverageType:     request.coverage.creditType,
         requestType:      request.requestType,
-        targetPrice:      request.targetPricePerDay,
+        targetPrice:      effectivePrice ?? undefined,
         agencyCount:      agencyIds.length,
         requestUrl,
       }
-      const gainNet = request.targetPricePerDay
-        ? calculatePricing(request.targetPricePerDay, request.durationDays).net
+      const gainNet = effectivePrice
+        ? calculatePricing(effectivePrice, request.durationDays).net
         : null
       const urgencyPrefix = request.requestType === 'immediate' ? '⚡ ' : ''
       const subject = gainNet !== null
