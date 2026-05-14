@@ -1,4 +1,5 @@
 import { getAppUrl } from '@/lib/appUrl'
+import { calculatePricing } from '@/lib/rentalPricing'
 
 const COVERAGE_LABELS: Record<string, string> = {
   full:    'Prise en charge totale',
@@ -57,7 +58,7 @@ export function buildLoueurEmailText(p: LoueurEmailParams): string {
   const appUrl      = getAppUrl()
   const coverageLabel = COVERAGE_LABELS[p.coverageType] ?? p.coverageType
   const dateEnd     = addDays(p.dateNeeded, p.durationDays)
-  const earnings    = p.targetPrice ? p.targetPrice * p.durationDays : null
+  const pricing     = p.targetPrice ? calculatePricing(p.targetPrice, p.durationDays) : null
   const isImmediate = p.requestType === 'immediate'
   const isMulti     = p.agencyCount > 1
 
@@ -69,6 +70,13 @@ export function buildLoueurEmailText(p: LoueurEmailParams): string {
     '',
     ...(isImmediate ? ['⚡ DEMANDE IMMÉDIATE', ''] : []),
     ...(isMulti     ? [`${p.agencyCount} loueurs contactés — premier répondant retenu`, ''] : []),
+    ...(pricing !== null ? [
+      `Gain net estimé  : ${pricing.net} € HT`,
+      `Total réservation: ${pricing.total} €`,
+      `Commission       : − ${pricing.commission} €`,
+      `Tarif            : ${pricing.pricePerDay} €/j × ${pricing.durationDays}j`,
+      '',
+    ] : []),
     `Dossier       : ${p.dossierNumber}`,
     `Lieu          : ${p.address}`,
     `Catégorie     : ${p.vehicleLabel}`,
@@ -76,7 +84,6 @@ export function buildLoueurEmailText(p: LoueurEmailParams): string {
     `Retour prévu  : ${formatDate(dateEnd)} à ${formatTime(dateEnd)}`,
     ...(p.maxExtensionDays ? [`Prolongation  : +${p.maxExtensionDays}j possible`] : []),
     `Couverture    : ${coverageLabel}`,
-    ...(earnings !== null ? [`Gain estimé   : ${earnings} € (${p.targetPrice} €/j × ${p.durationDays}j)`] : []),
     '',
     `Voir la demande : ${p.requestUrl}`,
     '',
@@ -93,7 +100,7 @@ export function buildLoueurEmailHtml(p: LoueurEmailParams): string {
   const coverageColor = COVERAGE_COLORS[p.coverageType] ?? '#64748b'
   const coverageLabel = COVERAGE_LABELS[p.coverageType]  ?? p.coverageType
   const dateEnd       = addDays(p.dateNeeded, p.durationDays)
-  const earnings      = p.targetPrice ? p.targetPrice * p.durationDays : null
+  const pricing       = p.targetPrice ? calculatePricing(p.targetPrice, p.durationDays) : null
 
   const urgencyBadge = isImmediate ? `
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px">
@@ -117,26 +124,39 @@ export function buildLoueurEmailHtml(p: LoueurEmailParams): string {
       </tr>
     </table>` : ''
 
-  const earningsBlock = earnings !== null ? `
+  const earningsBlock = pricing !== null ? `
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px">
       <tr>
         <td style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:16px;padding:20px 22px">
           <p style="margin:0 0 14px;color:#15803d;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em">
-            Gain si vous acceptez
+            Gain net estimé si vous acceptez
           </p>
           <table width="100%" cellpadding="0" cellspacing="0" border="0">
             <tr>
               <td>
-                <span style="color:#14532d;font-size:40px;font-weight:900;line-height:1;letter-spacing:-.02em">${earnings}&nbsp;€</span>
+                <span style="color:#14532d;font-size:40px;font-weight:900;line-height:1;letter-spacing:-.02em">${pricing.net}&nbsp;€</span>
               </td>
               <td style="vertical-align:bottom;padding-bottom:4px;padding-left:10px">
-                <span style="color:#16a34a;font-size:13px;font-weight:600">au total</span>
+                <span style="color:#16a34a;font-size:13px;font-weight:600">HT</span>
               </td>
             </tr>
           </table>
-          <p style="margin:10px 0 0;color:#16a34a;font-size:12px;font-weight:500;border-top:1px solid #bbf7d0;padding-top:10px">
-            ${p.targetPrice}&nbsp;€/j × ${p.durationDays}&nbsp;jour${p.durationDays > 1 ? 's' : ''}${p.maxExtensionDays ? `&ensp;·&ensp;<span style="color:#7c3aed">+${p.maxExtensionDays}j prolongation possible</span>` : ''}
-          </p>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;border-top:1px solid #bbf7d0;padding-top:10px">
+            <tr>
+              <td style="color:#16a34a;font-size:12px;padding-bottom:4px">Total réservation</td>
+              <td style="text-align:right;color:#15803d;font-size:12px;font-weight:700;padding-bottom:4px">${pricing.total}&nbsp;€</td>
+            </tr>
+            <tr>
+              <td style="color:#6b7280;font-size:12px;padding-bottom:4px">Commission DRIVES ON (15&nbsp;%)</td>
+              <td style="text-align:right;color:#6b7280;font-size:12px;font-weight:600;padding-bottom:4px">−&nbsp;${pricing.commission}&nbsp;€</td>
+            </tr>
+            <tr>
+              <td style="color:#16a34a;font-size:11px">
+                ${pricing.pricePerDay}&nbsp;€/j × ${pricing.durationDays}&nbsp;jour${pricing.durationDays > 1 ? 's' : ''}${p.maxExtensionDays ? `&ensp;·&ensp;<span style="color:#7c3aed">+${p.maxExtensionDays}j prolongation possible</span>` : ''}
+              </td>
+              <td></td>
+            </tr>
+          </table>
         </td>
       </tr>
     </table>` : ''

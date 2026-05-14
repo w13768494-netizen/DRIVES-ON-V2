@@ -5,6 +5,7 @@ import * as Sentry                                         from '@sentry/nextjs'
 import { VEHICLE_CATEGORY_LABELS }                         from '@/types/vehicleCategory'
 import { sendEmail }                                       from '@/lib/email'
 import { buildLoueurEmailHtml, buildLoueurEmailText }      from '@/lib/loueurEmail'
+import { calculatePricing }                                from '@/lib/rentalPricing'
 import { getAppUrl }                                       from '@/lib/appUrl'
 import type { AssistanceRequest }                          from '@/types/request'
 
@@ -82,11 +83,17 @@ export async function POST(req: NextRequest) {
         agencyCount:      agencyIds.length,
         requestUrl,
       }
+      const gainNet = request.targetPricePerDay
+        ? calculatePricing(request.targetPricePerDay, request.durationDays).net
+        : null
+      const urgencyPrefix = request.requestType === 'immediate' ? '⚡ ' : ''
+      const subject = gainNet !== null
+        ? `${urgencyPrefix}Nouvelle demande — gain estimé ${gainNet} € pour ${request.durationDays}j`
+        : `${urgencyPrefix}${request.requestType === 'immediate' ? 'Demande immédiate DRIVES ON' : 'Nouvelle demande DRIVES ON'} — ${vehicleLabel}`
+
       const emailResult = await sendEmail({
-        to:      agencyRow.email,
-        subject: request.requestType === 'immediate'
-          ? `⚡ Demande immédiate DRIVES ON — ${vehicleLabel}`
-          : `Nouvelle demande DRIVES ON — ${vehicleLabel}`,
+        to: agencyRow.email,
+        subject,
         html: buildLoueurEmailHtml(emailParams),
         text: buildLoueurEmailText(emailParams),
       })

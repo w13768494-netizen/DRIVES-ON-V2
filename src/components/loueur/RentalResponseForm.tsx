@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Check, X, ArrowRightLeft, Loader2, Tag, Info, Euro, ChevronDown } from 'lucide-react'
+import { calculatePricing } from '@/lib/rentalPricing'
 import { TransferRequestForm } from './TransferRequestForm'
 import { getCategoryOffersByAgency, getServicesByAgency } from '@/services/agencyService'
 import { AGENCY_SERVICE_LABELS } from '@/types/agencyService'
@@ -68,9 +69,25 @@ function EarningsBreakdown({
         </div>
       ))}
       <div className={`flex justify-between border-t ${borderCls} mt-1 pt-1.5 font-black text-sm`}>
-        <span className={totalLblCls}>Total</span>
+        <span className={totalLblCls}>Total brut</span>
         <span className={`tabular-nums ${dark ? 'text-white' : 'text-brand-600'}`}>{grandTotal} €</span>
       </div>
+      {(() => {
+        const { commission, net: baseNet } = calculatePricing(catalogPricePerDay!, durationDays)
+        const net = Math.round((baseNet + supplementTotal) * 100) / 100
+        return (
+          <>
+            <div className={`flex justify-between ${mutedCls}`}>
+              <span>Commission DRIVES ON (15 %)</span>
+              <span className={`tabular-nums font-semibold ${dark ? 'text-red-400' : 'text-red-500'}`}>− {commission} €</span>
+            </div>
+            <div className={`flex justify-between border-t ${borderCls} mt-1 pt-1.5 font-black text-sm`}>
+              <span className={dark ? 'text-green-400' : 'text-green-700'}>Gain net estimé</span>
+              <span className={`tabular-nums ${dark ? 'text-green-300' : 'text-green-700'}`}>{net} € HT</span>
+            </div>
+          </>
+        )
+      })()}
     </div>
   )
 }

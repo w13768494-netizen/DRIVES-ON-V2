@@ -5,6 +5,7 @@ import { MapPin, Car, Calendar, Clock, User, Phone, Mail, FileText, Euro, Shield
 import { LoueurStatusBadge } from './LoueurStatusBadge'
 import { CREDIT_TYPE_LABELS, REQUEST_TYPE_LABELS } from '@/types/request'
 import { getEndDate } from '@/lib/rentalDates'
+import { calculatePricing, getEffectivePrice } from '@/lib/rentalPricing'
 import { VEHICLE_CATEGORY_LABELS, VEHICLE_GROUP_LABELS } from '@/types/vehicleCategory'
 import { AGENCY_SERVICE_LABELS } from '@/types/agencyService'
 import type { AgencyService, AgencyServiceType } from '@/types/agencyService'
@@ -139,20 +140,60 @@ export function RentalRequestDetail({ request }: Props) {
         />
       </Section>
 
-      {/* Tarif cible */}
-      {request.targetPricePerDay && (
-        <Section title="Tarif journalier">
-          <Row
-            icon={<Tag className="w-4 h-4" />}
-            label="Tarif cible de l'assisteur"
-            value={
-              <span className="font-semibold text-brand-700">
-                {request.targetPricePerDay} €/j
-              </span>
-            }
-          />
-        </Section>
-      )}
+      {/* Récapitulatif financier */}
+      {(() => {
+        const effectivePrice = getEffectivePrice(request)
+        if (!effectivePrice) return null
+        const { total, commission, net } = calculatePricing(effectivePrice, durationDays)
+        const hasCounterOffer   = !!request.counterOfferPrice && request.counterOfferPrice !== request.targetPricePerDay
+        const loueurOwnPrice    = request.loueurResponse?.pricePerDay
+        const hasLoueurCounter  = !!loueurOwnPrice && loueurOwnPrice !== effectivePrice
+
+        return (
+          <Section title="Récapitulatif financier">
+            {request.targetPricePerDay && (
+              <Row
+                icon={<Tag className="w-4 h-4" />}
+                label="Tarif proposé initial"
+                value={<span className="font-semibold">{request.targetPricePerDay} €/j</span>}
+              />
+            )}
+            {hasCounterOffer && (
+              <Row
+                icon={<Euro className="w-4 h-4" />}
+                label="Contre-proposition assisteur"
+                value={<span className="font-semibold text-brand-700">{request.counterOfferPrice} €/j</span>}
+              />
+            )}
+            {hasLoueurCounter && (
+              <Row
+                icon={<Euro className="w-4 h-4" />}
+                label="Votre contre-proposition"
+                value={<span className="font-semibold text-teal-700">{loueurOwnPrice} €/j</span>}
+              />
+            )}
+            <Row
+              icon={<Calendar className="w-4 h-4" />}
+              label="Durée"
+              value={`${durationDays} jour${durationDays > 1 ? 's' : ''}`}
+            />
+            <div className="border-t border-slate-100 mt-1 pt-3 flex flex-col gap-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Total réservation</span>
+                <span className="font-semibold text-slate-800 tabular-nums">{total} €</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Commission DRIVES ON (15 %)</span>
+                <span className="font-semibold text-slate-400 tabular-nums">− {commission} €</span>
+              </div>
+              <div className="flex justify-between border-t border-slate-100 pt-2 mt-1">
+                <span className="font-semibold text-slate-700">Gain net loueur estimé</span>
+                <span className="font-black text-green-700 tabular-nums text-base">{net} € HT</span>
+              </div>
+            </div>
+          </Section>
+        )
+      })()}
 
       {/* Véhicule & Dates */}
       <Section title="Véhicule & Disponibilité">
@@ -229,12 +270,6 @@ export function RentalRequestDetail({ request }: Props) {
       {loueurResponse && (
         <Section title="Votre réponse enregistrée">
           <div className="flex flex-col gap-2 text-sm">
-            {loueurResponse.pricePerDay && (
-              <div className="flex justify-between">
-                <span className="text-slate-500">Prix accepté</span>
-                <span className="font-bold text-slate-900">{loueurResponse.pricePerDay} €/j</span>
-              </div>
-            )}
             {loueurResponse.vehicleModel && (
               <div className="flex justify-between">
                 <span className="text-slate-500">Modèle proposé</span>

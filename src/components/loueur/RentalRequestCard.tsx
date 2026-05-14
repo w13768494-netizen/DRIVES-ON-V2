@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { MapPin, Car, Calendar, Navigation, ChevronRight, ShieldCheck, ShieldAlert, Lock, Zap, CalendarClock } from 'lucide-react'
 import { DisplayStatusBadge } from '@/components/shared/DisplayStatusBadge'
 import { VEHICLE_CATEGORY_LABELS } from '@/types/vehicleCategory'
+import { calculatePricing, getEffectivePrice } from '@/lib/rentalPricing'
 import type { ReceivedRequest } from '@/types/loueur'
 
 interface Props {
@@ -85,6 +86,26 @@ export function RentalRequestCard({ request }: Props) {
           </span>
         </div>
 
+        {/* Financial summary */}
+        {(() => {
+          const price = getEffectivePrice(request)
+          if (!price) return null
+          const { total, commission, net } = calculatePricing(price, durationDays)
+          return (
+            <div className="bg-green-50 rounded-xl px-3.5 py-2.5 border border-green-100 flex flex-col gap-1.5">
+              <div className="flex items-baseline justify-between">
+                <span className="text-[11px] font-semibold text-green-700 uppercase tracking-wide">Gain estimé loueur</span>
+                <span className="text-base font-black text-green-800 tabular-nums">{net} € HT</span>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-slate-500">
+                <span>Total <span className="font-semibold text-slate-700">{total} €</span></span>
+                <span>Commission <span className="font-semibold text-slate-700">{commission} €</span></span>
+                <span><span className="font-semibold text-slate-700">{price} €/j</span> × {durationDays}j</span>
+              </div>
+            </div>
+          )
+        })()}
+
         {/* Footer */}
         <div className="flex items-center justify-between pt-2 border-t border-slate-100">
           <div className="flex items-center gap-3 text-xs">
@@ -95,11 +116,6 @@ export function RentalRequestCard({ request }: Props) {
             ) : (
               <span className="inline-flex items-center gap-1 font-semibold text-brand-600">
                 <CalendarClock className="w-3.5 h-3.5" aria-hidden="true" />Planifiée
-              </span>
-            )}
-            {request.loueurResponse?.pricePerDay && (
-              <span className="text-slate-600 font-semibold">
-                {request.loueurResponse.pricePerDay} €/j
               </span>
             )}
           </div>
