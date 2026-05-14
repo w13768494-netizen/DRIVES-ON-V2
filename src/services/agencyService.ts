@@ -40,6 +40,14 @@ function rowToCategoryOffer(row: AgencyVehicleCategoryRow): VehicleCategoryOffer
     deposit:          row.deposit,
     includedKmPerDay: row.included_km_per_day,
     extraKmPrice:     row.extra_km_price,
+    modeleEquivalent: row.modele_equivalent  ?? undefined,
+    tarif1_4:         row.tarif_1_4          ?? undefined,
+    tarif5_7:         row.tarif_5_7          ?? undefined,
+    tarif8_14:        row.tarif_8_14         ?? undefined,
+    tarif15_21:       row.tarif_15_21        ?? undefined,
+    tarif22_29:       row.tarif_22_29        ?? undefined,
+    forfait30Jours:   row.forfait_30_jours   ?? undefined,
+    actif:            row.actif              ?? true,
   }
 }
 

@@ -7,7 +7,7 @@ import { DrivesOnLogo } from '@/components/shared/DrivesOnLogo'
 import {
   ChevronLeft, ChevronRight, Menu,
   LayoutDashboard, Plus, Users, Building2,
-  LogOut, UserCircle2, Bell,
+  LogOut, UserCircle2, Bell, Tag,
 } from 'lucide-react'
 import { getSession } from '@/services/currentSessionService'
 import { signOut }    from '@/services/authService'
@@ -17,7 +17,7 @@ import type { MockSession } from '@/types/session'
 
 // ── Nav items config ──────────────────────────────────────────────────────────
 
-type IconKey = 'dashboard' | 'plus' | 'users' | 'building' | 'bell'
+type IconKey = 'dashboard' | 'plus' | 'users' | 'building' | 'bell' | 'tag'
 
 const ICONS: Record<IconKey, React.ReactNode> = {
   dashboard: <LayoutDashboard className="w-5 h-5" />,
@@ -25,6 +25,7 @@ const ICONS: Record<IconKey, React.ReactNode> = {
   users:     <Users           className="w-5 h-5" />,
   building:  <Building2       className="w-5 h-5" />,
   bell:      <Bell            className="w-5 h-5" />,
+  tag:       <Tag             className="w-5 h-5" />,
 }
 
 interface NavItem {
@@ -46,6 +47,7 @@ const NAV: Record<'assisteur' | 'loueur', NavItem[]> = {
     { href: '/loueur/dashboard',      icon: 'dashboard', label: 'Tableau de bord', exact: true },
     { href: '/loueur/notifications',  icon: 'bell',      label: 'Notifications',   hasBadge: true },
     { href: '/loueur/profil',         icon: 'building',  label: 'Mon profil'                   },
+    { href: '/loueur/tarifs',         icon: 'tag',       label: 'Mes tarifs'                   },
   ],
 }
 

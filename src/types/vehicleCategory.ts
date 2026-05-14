@@ -95,4 +95,13 @@ export interface VehicleCategoryOffer {
   deposit:          number
   includedKmPerDay: number
   extraKmPrice:     number
+  // Grille tarifaire par tranche (beta loueur) — fallback sur dailyRate si absent
+  modeleEquivalent?:  string
+  tarif1_4?:          number
+  tarif5_7?:          number
+  tarif8_14?:         number
+  tarif15_21?:        number
+  tarif22_29?:        number
+  forfait30Jours?:    number
+  actif?:             boolean
 }

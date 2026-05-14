@@ -33,3 +33,34 @@ export function getEffectivePrice(request: {
 }): number | null {
   return request.counterOfferPrice ?? request.targetPricePerDay ?? null
 }
+
+/** Structure minimale pour le calcul de tarif par tranche */
+export interface PriceableTarif {
+  dailyRate:       number
+  tarif1_4?:       number
+  tarif5_7?:       number
+  tarif8_14?:      number
+  tarif15_21?:     number
+  tarif22_29?:     number
+  forfait30Jours?: number
+}
+
+/**
+ * Retourne le total HT pour une durée donnée selon la grille tarifaire.
+ * Fallback sur dailyRate si la tranche n'est pas renseignée.
+ * Retourne null si aucun tarif disponible.
+ */
+export function getPriceForDuration(
+  offer: PriceableTarif,
+  durationDays: number,
+): number | null {
+  const d = Math.max(1, Math.round(durationDays))
+  const fallback = offer.dailyRate > 0 ? round2(offer.dailyRate * d) : null
+
+  if (d >= 30) return offer.forfait30Jours  != null ? offer.forfait30Jours  : (offer.dailyRate > 0 ? round2(offer.dailyRate * 30) : null)
+  if (d >= 22) return offer.tarif22_29 != null ? round2(offer.tarif22_29 * d) : fallback
+  if (d >= 15) return offer.tarif15_21 != null ? round2(offer.tarif15_21 * d) : fallback
+  if (d >= 8)  return offer.tarif8_14  != null ? round2(offer.tarif8_14  * d) : fallback
+  if (d >= 5)  return offer.tarif5_7   != null ? round2(offer.tarif5_7   * d) : fallback
+  return              offer.tarif1_4   != null ? round2(offer.tarif1_4   * d) : fallback
+}
