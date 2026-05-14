@@ -88,6 +88,8 @@ export function RequestRecap({ input, companies, serviceTypes, agencyServices, t
   const [coverageFile, setCoverageFile] = useState<File | null>(null)
   const [coverageUrl,  setCoverageUrl]  = useState('')
 
+  const hasCoverage = !!(coverageFile || coverageUrl.trim())
+
   function resolveSupplementsFor(type: AgencyServiceType, services: AgencyService[]) {
     const matches = services.filter(s => s.type === type && s.available)
     if (matches.length === 0 || matches.some(s => s.priceType === 'inclus')) {
@@ -271,6 +273,17 @@ export function RequestRecap({ input, companies, serviceTypes, agencyServices, t
         onUrlChange={setCoverageUrl}
       />
 
+      {/* Warning prise en charge manquante */}
+      {!hasCoverage && (
+        <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+          <span className="text-amber-500 text-base shrink-0 mt-0.5">⚠</span>
+          <div className="text-sm text-amber-700">
+            <span className="font-semibold">Prise en charge non jointe</span>
+            <span className="font-normal"> — le loueur ne la recevra pas avec la demande.</span>
+          </div>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex gap-3 pt-1">
         <button
@@ -281,11 +294,18 @@ export function RequestRecap({ input, companies, serviceTypes, agencyServices, t
         </button>
         <button
           type="button" onClick={() => onSend(coverageFile ?? undefined, coverageUrl || undefined)} disabled={loading}
-          className="flex-1 flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
+          className={[
+            'flex-1 flex items-center justify-center gap-2 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors disabled:opacity-50',
+            hasCoverage
+              ? 'bg-brand-500 hover:bg-brand-600 text-white'
+              : 'bg-amber-500 hover:bg-amber-600 text-white',
+          ].join(' ')}
         >
           {loading
             ? <><Loader2 className="w-4 h-4 animate-spin" /> Envoi en cours…</>
-            : <>Confirmer et envoyer <ArrowRight className="w-4 h-4" /></>
+            : hasCoverage
+              ? <>Confirmer et envoyer <ArrowRight className="w-4 h-4" /></>
+              : <>Envoyer quand même <ArrowRight className="w-4 h-4" /></>
           }
         </button>
       </div>

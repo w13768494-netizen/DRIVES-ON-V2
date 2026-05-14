@@ -120,6 +120,7 @@ export default function DemandeDetailPage({
   const isEnCours         = getDisplayStatus(request.status, request.dateNeeded) === 'en_cours'
   const isPaymentPending  = request.status === 'honoree'
 
+  const hasCoverageDoc         = docs.some(d => d.type === 'prise_en_charge' && d.owner === 'assisteur')
   const requiredLoueurDocTypes = LOUEUR_DOCUMENT_TYPES.filter(t => t !== 'autre')
   const loueurDocs             = docs.filter(d => d.owner === 'loueur')
   const missingDocs            = requiredLoueurDocTypes.filter(t => !loueurDocs.some(d => d.type === t))
@@ -172,6 +173,15 @@ export default function DemandeDetailPage({
               <span className="text-xs text-slate-400">
                 Créée {format(request.createdAt, "d MMMM yyyy 'à' HH'h'mm", { locale: fr })}
               </span>
+              {!['cloturee'].includes(request.status) && (
+                hasCoverageDoc
+                  ? <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
+                      <ShieldCheck className="w-3 h-3" /> PC jointe
+                    </span>
+                  : <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
+                      <AlertTriangle className="w-3 h-3" /> PC manquante
+                    </span>
+              )}
             </div>
           </div>
           <StatusBadge status={request.status} pulse />
