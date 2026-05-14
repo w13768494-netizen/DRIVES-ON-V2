@@ -69,12 +69,11 @@ function EarningsBreakdown({
         </div>
       ))}
       <div className={`flex justify-between border-t ${borderCls} mt-1 pt-1.5 font-black text-sm`}>
-        <span className={totalLblCls}>Total brut</span>
+        <span className={totalLblCls}>Total HT</span>
         <span className={`tabular-nums ${dark ? 'text-white' : 'text-brand-600'}`}>{grandTotal} €</span>
       </div>
       {(() => {
-        const { commission, net: baseNet } = calculatePricing(catalogPricePerDay!, durationDays)
-        const net = Math.round((baseNet + supplementTotal) * 100) / 100
+        const { commission, net } = calculatePricing(catalogPricePerDay!, durationDays, supplementTotal)
         return (
           <>
             <div className={`flex justify-between ${mutedCls}`}>
