@@ -2,6 +2,7 @@ import { MOCK_RENTAL_COMPANIES }         from '@/data/mockRentalCompanies'
 import { MOCK_VEHICLE_CATEGORY_OFFERS }  from '@/data/mockVehicleCategoryOffers'
 import { calculateDistance }             from '@/lib/distance'
 import { getActiveCityIds }              from '@/services/deploymentService'
+import { getPriceForDuration }           from '@/lib/rentalPricing'
 import { supabase }                      from '@/lib/supabaseClient'
 import type { MatchingParams, MatchingResult, ScoreBreakdown } from '@/types/matching'
 import type { RentalCompany }            from '@/types/rentalCompany'
@@ -64,22 +65,36 @@ export function computeMatchingScore(
   return { total, distance: distanceScore, stock: stockScore, category: categoryScore, reactivity: reactivityScore }
 }
 
+type PricingFields = Pick<MatchingResult, 'effectivePricePerDay' | 'effectiveTotalPrice' | 'hasForfait' | 'forfaitLabel' | 'tarifBracketLabel'>
+
 function resolveEffectivePricing(
   companyId:    string,
   category:     VehicleCategoryType,
   basePrices:   Partial<Record<VehicleCategoryType, number>>,
   durationDays: number | undefined,
-): Pick<MatchingResult, 'effectivePricePerDay' | 'effectiveTotalPrice' | 'hasForfait' | 'forfaitLabel'> {
-  const offer     = MOCK_VEHICLE_CATEGORY_OFFERS.find(o => o.agencyId === companyId && o.category === category)
-  const dailyRate = offer?.dailyRate ?? basePrices[category]
-  if (durationDays && offer) {
-    const pkg = offer.packages.find(p => p.days === durationDays)
-    if (pkg) return { effectivePricePerDay: pkg.price / durationDays, effectiveTotalPrice: pkg.price, hasForfait: true, forfaitLabel: pkg.label }
+): PricingFields {
+  const offer = MOCK_VEHICLE_CATEGORY_OFFERS.find(o => o.agencyId === companyId && o.category === category)
+  if (!durationDays || !offer) {
+    const rate = offer?.dailyRate ?? basePrices[category]
+    return rate !== undefined
+      ? { effectivePricePerDay: rate, effectiveTotalPrice: durationDays ? rate * durationDays : undefined, hasForfait: false }
+      : { hasForfait: false }
   }
-  if (dailyRate !== undefined) {
-    return { effectivePricePerDay: dailyRate, effectiveTotalPrice: durationDays ? dailyRate * durationDays : undefined, hasForfait: false }
-  }
-  return { hasForfait: false }
+  const total = getPriceForDuration(offer, durationDays)
+  if (total === null) return { hasForfait: false }
+  const d = Math.max(1, Math.round(durationDays))
+  const isForfait30 = d >= 30 && offer.forfait30Jours != null
+  const tarifBracketLabel =
+    d >= 30 ? (offer.forfait30Jours  != null ? 'Forfait 30j'     : undefined) :
+    d >= 22 ? (offer.tarif22_29      != null ? 'Tranche 22–29j'  : undefined) :
+    d >= 15 ? (offer.tarif15_21      != null ? 'Tranche 15–21j'  : undefined) :
+    d >= 8  ? (offer.tarif8_14       != null ? 'Tranche 8–14j'   : undefined) :
+    d >= 5  ? (offer.tarif5_7        != null ? 'Tranche 5–7j'    : undefined) :
+              (offer.tarif1_4        != null ? 'Tranche 1–4j'    : undefined)
+  const effectivePricePerDay = isForfait30
+    ? Math.round((total / 30) * 100) / 100
+    : Math.round((total / d) * 100) / 100
+  return { effectivePricePerDay, effectiveTotalPrice: total, hasForfait: isForfait30, forfaitLabel: isForfait30 ? 'Forfait 30j' : undefined, tarifBracketLabel }
 }
 
 // ── Helpers Supabase uniquement ───────────────────────────────────────────────
@@ -122,15 +137,36 @@ function computeScoreFromRow(
 function resolvePricingFromRow(
   avc:          AgencyVehicleCategoryRow,
   durationDays: number | undefined,
-): Pick<MatchingResult, 'effectivePricePerDay' | 'effectiveTotalPrice' | 'hasForfait' | 'forfaitLabel'> {
-  if (durationDays && avc.packages?.length) {
-    const pkg = avc.packages.find(p => p.days === durationDays)
-    if (pkg) return { effectivePricePerDay: pkg.price / durationDays, effectiveTotalPrice: pkg.price, hasForfait: true, forfaitLabel: pkg.label }
+): PricingFields {
+  if (!durationDays) {
+    return avc.daily_rate > 0
+      ? { effectivePricePerDay: avc.daily_rate, hasForfait: false }
+      : { hasForfait: false }
   }
-  if (avc.daily_rate) {
-    return { effectivePricePerDay: avc.daily_rate, effectiveTotalPrice: durationDays ? avc.daily_rate * durationDays : undefined, hasForfait: false }
+  const tarif = {
+    dailyRate:      avc.daily_rate,
+    tarif1_4:       avc.tarif_1_4       ?? undefined,
+    tarif5_7:       avc.tarif_5_7       ?? undefined,
+    tarif8_14:      avc.tarif_8_14      ?? undefined,
+    tarif15_21:     avc.tarif_15_21     ?? undefined,
+    tarif22_29:     avc.tarif_22_29     ?? undefined,
+    forfait30Jours: avc.forfait_30_jours ?? undefined,
   }
-  return { hasForfait: false }
+  const total = getPriceForDuration(tarif, durationDays)
+  if (total === null) return { hasForfait: false }
+  const d = Math.max(1, Math.round(durationDays))
+  const isForfait30 = d >= 30 && avc.forfait_30_jours != null
+  const tarifBracketLabel =
+    d >= 30 ? (avc.forfait_30_jours != null ? 'Forfait 30j'     : undefined) :
+    d >= 22 ? (avc.tarif_22_29      != null ? 'Tranche 22–29j'  : undefined) :
+    d >= 15 ? (avc.tarif_15_21      != null ? 'Tranche 15–21j'  : undefined) :
+    d >= 8  ? (avc.tarif_8_14       != null ? 'Tranche 8–14j'   : undefined) :
+    d >= 5  ? (avc.tarif_5_7        != null ? 'Tranche 5–7j'    : undefined) :
+              (avc.tarif_1_4        != null ? 'Tranche 1–4j'    : undefined)
+  const effectivePricePerDay = isForfait30
+    ? Math.round((total / 30) * 100) / 100
+    : Math.round((total / d) * 100) / 100
+  return { effectivePricePerDay, effectiveTotalPrice: total, hasForfait: isForfait30, forfaitLabel: isForfait30 ? 'Forfait 30j' : undefined, tarifBracketLabel }
 }
 
 // ── Point d'entrée ────────────────────────────────────────────────────────────
@@ -178,12 +214,15 @@ async function getMatchingResultsSupabase(params: MatchingParams): Promise<Match
 
     const company = agencyToCompany(agency, avc)
     results.push({
-      company:       { ...company, distanceKm },
+      company:          { ...company, distanceKm },
       distanceKm,
-      stockEstimate: avc.stock_estimate,
-      available:     true,
-      score:         computeScoreFromRow(avc, distanceKm, radiusKm),
-      isRecommended: false,
+      stockEstimate:    avc.stock_estimate,
+      available:        true,
+      score:            computeScoreFromRow(avc, distanceKm, radiusKm),
+      isRecommended:    false,
+      modeleEquivalent: avc.modele_equivalent  ?? undefined,
+      includedKmPerDay: avc.included_km_per_day > 0 ? avc.included_km_per_day : undefined,
+      extraKmPrice:     avc.extra_km_price     > 0 ? avc.extra_km_price      : undefined,
       ...resolvePricingFromRow(avc, durationDays),
     })
   }
@@ -217,14 +256,18 @@ async function getMatchingResultsMock(params: MatchingParams): Promise<MatchingR
 
     const score = computeMatchingScore(company, distanceKm, vehicleCategory, radiusKm)
     const { stockEstimate, available } = getStockInfo(company.id, vehicleCategory, company.fleetSize)
+    const offer = MOCK_VEHICLE_CATEGORY_OFFERS.find(o => o.agencyId === company.id && o.category === vehicleCategory)
 
     results.push({
-      company:       { ...company, distanceKm },
+      company:          { ...company, distanceKm },
       distanceKm,
       stockEstimate,
       available,
       score,
-      isRecommended: false,
+      isRecommended:    false,
+      modeleEquivalent: offer?.modeleEquivalent,
+      includedKmPerDay: offer?.includedKmPerDay && offer.includedKmPerDay > 0 ? offer.includedKmPerDay : undefined,
+      extraKmPrice:     offer?.extraKmPrice     && offer.extraKmPrice     > 0 ? offer.extraKmPrice     : undefined,
       ...resolveEffectivePricing(company.id, vehicleCategory, company.basePrices, durationDays),
     })
   }

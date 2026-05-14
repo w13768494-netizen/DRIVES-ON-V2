@@ -24,8 +24,12 @@ export interface MatchingResult {
   available:            boolean
   score:                ScoreBreakdown
   isRecommended:        boolean         // top 3 avec score ≥ 50
-  effectivePricePerDay?: number         // taux journalier effectif (forfait ou tarif de base)
+  effectivePricePerDay?: number         // taux journalier effectif selon grille
   effectiveTotalPrice?:  number         // total sur la durée demandée
-  hasForfait?:           boolean        // true si un forfait correspond à durationDays
-  forfaitLabel?:         string         // ex. "7 jours"
+  hasForfait?:           boolean        // true si forfait 30j
+  forfaitLabel?:         string         // ex. "Forfait 30j"
+  tarifBracketLabel?:    string         // ex. "Tranche 5–7j" ou "Forfait 30j"
+  modeleEquivalent?:     string         // modèle ou équivalent renseigné par le loueur
+  includedKmPerDay?:     number         // km inclus par jour
+  extraKmPrice?:         number         // prix km supplémentaire
 }

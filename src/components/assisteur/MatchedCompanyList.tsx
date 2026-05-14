@@ -36,8 +36,13 @@ function CompanyCard({
   rank?:      number
   onToggle:   () => void
 }) {
-  const { company, distanceKm, stockEstimate, available,
-          effectivePricePerDay, effectiveTotalPrice } = result
+  const {
+    company, distanceKm, stockEstimate, available,
+    effectivePricePerDay, effectiveTotalPrice, hasForfait,
+    tarifBracketLabel, modeleEquivalent, includedKmPerDay, extraKmPrice,
+  } = result
+
+  const addressLine = [company.address, company.city].filter(Boolean).join(', ')
 
   return (
     <button
@@ -68,6 +73,8 @@ function CompanyCard({
         </div>
 
         <div className="flex-1 min-w-0">
+
+          {/* Ligne 1 — Nom + badges */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-bold text-slate-800 text-sm">{company.name}</span>
             {rank === 1 && (
@@ -82,30 +89,56 @@ function CompanyCard({
             )}
           </div>
 
+          {/* Ligne 2 — Adresse + distance */}
           <p className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
-            <MapPin className="w-3 h-3 shrink-0" />{company.city}
+            <MapPin className="w-3 h-3 shrink-0" />
+            <span className="truncate">{addressLine || company.city}</span>
+            <span className="shrink-0 flex items-center gap-0.5 ml-1">
+              <Navigation className="w-3 h-3 text-brand-400" />
+              <span className="font-semibold text-brand-500">{distanceKm.toFixed(1)} km</span>
+            </span>
           </p>
 
-          <div className="flex items-center gap-4 mt-2">
-            <div className="flex items-center gap-1.5">
-              <Navigation className="w-3.5 h-3.5 text-brand-400 shrink-0" />
-              <span className="text-sm font-bold text-slate-700">{distanceKm.toFixed(1)} km</span>
+          {/* Ligne 3 — Modèle équivalent */}
+          {modeleEquivalent && (
+            <p className="text-xs text-slate-500 mt-1 italic">{modeleEquivalent}</p>
+          )}
+
+          {/* Ligne 4 — Tarif */}
+          {effectivePricePerDay !== undefined && (
+            <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 mt-2">
+              <span className="text-sm font-bold text-slate-800">
+                {hasForfait ? 'Forfait' : `${effectivePricePerDay} €/j`}
+              </span>
+              {tarifBracketLabel && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-600">
+                  {tarifBracketLabel}
+                </span>
+              )}
+              {effectiveTotalPrice !== undefined && (
+                <span className="text-xs text-slate-500">
+                  → <span className="font-semibold text-slate-700">{effectiveTotalPrice} € HT</span> total
+                </span>
+              )}
             </div>
-            {effectivePricePerDay !== undefined && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-bold text-slate-700">{effectivePricePerDay} €/j</span>
-                {effectiveTotalPrice !== undefined && (
-                  <span className="text-xs text-slate-400">· {effectiveTotalPrice} € total</span>
-                )}
-              </div>
+          )}
+
+          {/* Ligne 5 — Km + stock */}
+          <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 mt-1">
+            {includedKmPerDay !== undefined && (
+              <span className="text-xs text-slate-400">
+                {includedKmPerDay === 0 ? 'Km illimités' : `${includedKmPerDay} km/j inclus`}
+                {extraKmPrice !== undefined && <span> · {extraKmPrice} €/km suppl.</span>}
+              </span>
             )}
             {stockEstimate !== null && stockEstimate > 0 && (
-              <div className="flex items-center gap-1">
-                <Package className="w-3 h-3 text-slate-400 shrink-0" />
-                <span className="text-xs text-slate-400">{stockEstimate} dispo.</span>
-              </div>
+              <span className="flex items-center gap-1 text-xs text-slate-400">
+                <Package className="w-3 h-3 shrink-0" />
+                {stockEstimate} dispo.
+              </span>
             )}
           </div>
+
         </div>
       </div>
     </button>

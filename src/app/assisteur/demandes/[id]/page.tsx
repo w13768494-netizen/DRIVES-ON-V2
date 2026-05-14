@@ -9,7 +9,7 @@ import {
   XCircle, AlertCircle, RotateCcw, ShieldCheck, ShieldAlert,
   History, FileText, Zap, CalendarClock, ArrowRightLeft,
   Euro, Loader2, AlertTriangle, CalendarX2, ExternalLink,
-  UserCircle, Clock3,
+  UserCircle, Clock3, SendHorizonal, Navigation,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -135,6 +135,15 @@ export default function DemandeDetailPage({
         <ArrowLeft className="w-4 h-4" />
         Tableau de bord
       </Link>
+
+      {/* ── Bloc action rapide ── */}
+      <ActionBanner
+        status={request.status}
+        agencyCount={(request.assignedAgencyIds ?? [request.assignedAgencyId].filter(Boolean)).length}
+        resp={resp ?? null}
+        agency={agency}
+        durationDays={request.durationDays}
+      />
 
       {/* Header dossier */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
@@ -397,6 +406,116 @@ export default function DemandeDetailPage({
       )}
     </div>
   )
+}
+
+// ── Bloc action rapide ────────────────────────────────────────────────────────
+
+function ActionBanner({
+  status, agencyCount, resp, agency, durationDays,
+}: {
+  status:       string
+  agencyCount:  number
+  resp:         NonNullable<AssistanceRequest['loueurResponse']> | null
+  agency:       RentalAgency | null
+  durationDays: number
+}) {
+  if (status === 'envoyee') {
+    return (
+      <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl">
+        <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+        <p className="text-sm font-semibold text-amber-800">
+          En attente de réponse
+          <span className="font-normal text-amber-700 ml-1">
+            — demande envoyée à {agencyCount} loueur{agencyCount > 1 ? 's' : ''}
+          </span>
+        </p>
+      </div>
+    )
+  }
+
+  if (status === 'acceptee' && resp) {
+    const total = resp.pricePerDay != null ? resp.pricePerDay * durationDays : null
+    return (
+      <div className="flex items-start gap-3 px-4 py-3 bg-teal-50 border-2 border-teal-300 rounded-2xl">
+        <Euro className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-teal-800">
+            Réponse reçue — action requise
+          </p>
+          <p className="text-xs text-teal-700 mt-0.5">
+            <span className="font-semibold">{resp.agencyName}</span>
+            {resp.pricePerDay != null && (
+              <> propose <span className="font-black">{resp.pricePerDay} €/j</span>
+              {total != null && <> · {total} € total pour {durationDays}j</>}
+              </>
+            )}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if ((status === 'confirmee' || status === 'honoree') && resp) {
+    const addressFull = agency
+      ? [agency.address, agency.postalCode, agency.city].filter(Boolean).join(', ')
+      : resp.agencyName
+    const mapsUrl = agency
+      ? `https://maps.google.com/?q=${encodeURIComponent(addressFull)}`
+      : null
+
+    return (
+      <div className="rounded-2xl border-2 border-green-400 overflow-hidden">
+        <div className="h-1.5 w-full bg-green-500" />
+        <div className="bg-green-50 px-5 py-4">
+          <div className="flex items-center gap-2 mb-3">
+            <SendHorizonal className="w-5 h-5 text-green-700 shrink-0" />
+            <p className="text-sm font-black text-green-800 uppercase tracking-wide">
+              Envoyer l'assuré chez
+            </p>
+          </div>
+          <p className="text-xl font-black text-green-900 mb-1">{resp.agencyName}</p>
+          {addressFull && (
+            <div className="flex items-start gap-1.5 mb-1">
+              <MapPin className="w-3.5 h-3.5 text-green-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="text-sm text-green-800 font-medium">{addressFull}</span>
+                {mapsUrl && (
+                  <a
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 ml-2 text-xs text-green-700 underline underline-offset-2 hover:text-green-900"
+                  >
+                    <Navigation className="w-3 h-3" /> Maps
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+          {agency?.phone && (
+            <div className="flex items-center gap-1.5">
+              <Phone className="w-3.5 h-3.5 text-green-600 shrink-0" />
+              <a
+                href={`tel:${agency.phone}`}
+                onClick={e => e.stopPropagation()}
+                className="text-sm font-semibold text-green-800 hover:text-green-900"
+              >
+                {agency.phone}
+              </a>
+            </div>
+          )}
+          {resp.pricePerDay != null && (
+            <p className="mt-2 text-xs text-green-700 font-medium">
+              Tarif confirmé : {resp.pricePerDay} €/j · {resp.pricePerDay * durationDays} € HT pour {durationDays}j
+            </p>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  return null
 }
 
 // ── Validation contre-proposition ────────────────────────────────────────────
