@@ -11,13 +11,14 @@ export async function POST(request: NextRequest) {
   const auth = await requireAdmin()
   if (!auth.ok) return auth.response
 
-  const { email, role, full_name, company_name, requestId } =
+  const { email, role, full_name, company_name, account_type, requestId } =
     await request.json() as {
-      email:        string
-      role:         'loueur' | 'assisteur'
-      full_name:    string
-      company_name: string | null
-      requestId?:   string
+      email:         string
+      role:          'loueur' | 'assisteur'
+      full_name:     string
+      company_name:  string | null
+      account_type?: string | null
+      requestId?:    string
     }
 
   if (!email || !role || !full_name) {
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
     type:  'invite',
     email,
     options: {
-      data:       { role, full_name, company_name: company_name ?? '' },
+      data:       { role, full_name, company_name: company_name ?? '', account_type: account_type ?? null },
       redirectTo: `${appUrl}/auth/set-password`,
     },
   })
