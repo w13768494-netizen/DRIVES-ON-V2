@@ -3,7 +3,10 @@ import { MOCK_REQUESTS }  from '@/data/mockRequests'
 import type {
   AssistanceRequest, RequestFormInput, RequestStatus,
   LoueurResponse, CoverageInfo, Sinistre, BreakdownLocation,
+  CoverageType,
 } from '@/types/request'
+import { creditTypeToCoverageType } from '@/types/request'
+import type { AccountType }         from '@/types/session'
 import type { VehicleCategoryType, VehicleGroupType } from '@/types/vehicleCategory'
 import type { AgencyServiceType } from '@/types/agencyService'
 import type { RequestTransfer }     from '@/types/requestTransfer'
@@ -50,9 +53,11 @@ interface DbRow {
   transfers:             (RequestTransfer & { proposedAt: string; validatedAt?: string })[]
   timeline:              (RequestTimelineEvent & { at: string })[]
   extensions:            ExtensionRequest[] | null
-  created_at:            string
-  created_by_user_id:    string | null
-  created_by_name:       string | null
+  coverage_type:          CoverageType | null
+  requester_account_type: AccountType  | null
+  created_at:             string
+  created_by_user_id:     string | null
+  created_by_name:        string | null
 }
 
 // ── Mapping helpers ───────────────────────────────────────────────────────────
@@ -92,10 +97,12 @@ function rowToRequest(row: DbRow): AssistanceRequest {
       validatedAt: t.validatedAt ? new Date(t.validatedAt) : undefined,
     })),
     timeline: (row.timeline ?? []).map(e => ({ ...e, at: new Date(e.at) })),
-    extensions:      row.extensions ?? undefined,
-    createdAt:       new Date(row.created_at),
-    createdByUserId: row.created_by_user_id ?? 'unknown',
-    createdByName:   row.created_by_name    ?? 'Inconnu',
+    extensions:           row.extensions ?? undefined,
+    coverageType:         row.coverage_type          ?? undefined,
+    requesterAccountType: row.requester_account_type ?? undefined,
+    createdAt:            new Date(row.created_at),
+    createdByUserId:      row.created_by_user_id ?? 'unknown',
+    createdByName:        row.created_by_name    ?? 'Inconnu',
   }
 }
 
@@ -128,10 +135,12 @@ function requestToRow(r: AssistanceRequest): Record<string, unknown> {
     counter_offer_message:r.counterOfferMessage ?? null,
     transfers:            r.transfers,
     timeline:             r.timeline,
-    extensions:           r.extensions ?? null,
-    created_at:           r.createdAt.toISOString(),
-    created_by_user_id:   r.createdByUserId,
-    created_by_name:      r.createdByName,
+    extensions:             r.extensions ?? null,
+    coverage_type:          r.coverageType          ?? null,
+    requester_account_type: r.requesterAccountType  ?? null,
+    created_at:             r.createdAt.toISOString(),
+    created_by_user_id:     r.createdByUserId,
+    created_by_name:        r.createdByName,
   }
 }
 
@@ -164,8 +173,10 @@ function patchToRow(patch: Partial<AssistanceRequest>): Record<string, unknown> 
     transfers:           'transfers',
     timeline:            'timeline',
     extensions:          'extensions',
-    createdByUserId:     'created_by_user_id',
-    createdByName:       'created_by_name',
+    coverageType:         'coverage_type',
+    requesterAccountType: 'requester_account_type',
+    createdByUserId:      'created_by_user_id',
+    createdByName:        'created_by_name',
   }
   const row: Record<string, unknown> = {}
   for (const [camel, snake] of Object.entries(map)) {
@@ -251,8 +262,9 @@ export async function sendRequest(
   const primaryId = ids[0]
   const now       = new Date()
 
-  let createdByUserId: string
-  let createdByName:   string
+  let createdByUserId:     string
+  let createdByName:       string
+  let requesterAccountType: AccountType | undefined
 
   if (USE_SUPABASE) {
     const { data: { user } } = await supabase.auth.getUser()
@@ -262,23 +274,26 @@ export async function sendRequest(
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('full_name')
+      .select('full_name, account_type')
       .eq('id', user.id)
       .single()
-    createdByName = (profile as { full_name?: string | null } | null)?.full_name
+    createdByName        = (profile as { full_name?: string | null } | null)?.full_name
       ?? user.email
       ?? 'Assisteur'
+    requesterAccountType = (profile as { account_type?: string | null } | null)?.account_type as AccountType ?? undefined
   } else {
     throw new Error('Supabase non configuré — impossible de créer une demande.')
   }
 
   const request: AssistanceRequest = {
     ...input,
-    id:                generateId(),
-    status:            'envoyee',
-    assignedAgencyId:  primaryId,
-    assignedAgencyIds: ids.length > 1 ? ids : undefined,
-    transfers:         [],
+    id:                   generateId(),
+    status:               'envoyee',
+    assignedAgencyId:     primaryId,
+    assignedAgencyIds:    ids.length > 1 ? ids : undefined,
+    coverageType:         creditTypeToCoverageType(input.coverage.creditType),
+    requesterAccountType,
+    transfers:            [],
     timeline: [
       { id: generateEvtId(), type: 'creation', at: now, byRole: 'assisteur' },
       ...ids.map((agencyId, i) => ({

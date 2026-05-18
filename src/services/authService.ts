@@ -1,8 +1,8 @@
 'use client'
 
-import { createClient }              from '@/lib/supabase/client'
-import { setSession, clearSession }  from './currentSessionService'
-import type { UserRole, AppSession } from '@/types/session'
+import { createClient }                        from '@/lib/supabase/client'
+import { setSession, clearSession }            from './currentSessionService'
+import type { UserRole, AccountType, AppSession } from '@/types/session'
 
 // ── signIn ────────────────────────────────────────────────────────────────────
 // Le rôle est lu depuis profiles (source de vérité protégée par trigger),
@@ -18,7 +18,7 @@ export async function signIn(
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, account_type')
     .eq('id', data.user.id)
     .single()
 
@@ -28,11 +28,12 @@ export async function signIn(
 
   const meta = data.user.user_metadata
   const session: AppSession = {
-    role:      profile.role as UserRole,
-    userId:    data.user.id,
-    userName:  meta.full_name ?? email,
-    company:   meta.company_name ?? '',
-    createdAt: new Date().toISOString(),
+    role:        profile.role as UserRole,
+    accountType: (profile.account_type as AccountType) ?? undefined,
+    userId:      data.user.id,
+    userName:    meta.full_name ?? email,
+    company:     meta.company_name ?? '',
+    createdAt:   new Date().toISOString(),
   }
   setSession(session)
   return { session, error: null }
@@ -57,7 +58,7 @@ export async function refreshSession(): Promise<AppSession | null> {
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, account_type')
     .eq('id', user.id)
     .single()
 
@@ -65,11 +66,12 @@ export async function refreshSession(): Promise<AppSession | null> {
 
   const meta = user.user_metadata
   const session: AppSession = {
-    role:      profile.role as UserRole,
-    userId:    user.id,
-    userName:  meta.full_name ?? user.email ?? '',
-    company:   meta.company_name ?? '',
-    createdAt: new Date().toISOString(),
+    role:        profile.role as UserRole,
+    accountType: (profile.account_type as AccountType) ?? undefined,
+    userId:      user.id,
+    userName:    meta.full_name ?? user.email ?? '',
+    company:     meta.company_name ?? '',
+    createdAt:   new Date().toISOString(),
   }
   setSession(session)
   return session

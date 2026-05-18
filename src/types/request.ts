@@ -1,4 +1,5 @@
 import type { VehicleCategoryType, VehicleGroupType } from './vehicleCategory'
+import type { AccountType } from './session'
 import type { RequestTransfer } from './requestTransfer'
 import type { RequestTimelineEvent } from './requestTimeline'
 import type { AgencyServiceType } from './agencyService'
@@ -109,6 +110,20 @@ export interface CoverageInfo {
   creditType: CreditType
 }
 
+export type CoverageType = 'none' | 'partial' | 'full'
+
+export const COVERAGE_TYPE_LABELS: Record<CoverageType, string> = {
+  none:    'Aucune prise en charge',
+  partial: 'Prise en charge partielle',
+  full:    'Prise en charge totale',
+}
+
+export function creditTypeToCoverageType(creditType: CreditType): CoverageType {
+  if (creditType === 'full')    return 'full'
+  if (creditType === 'partial') return 'partial'
+  return 'none'
+}
+
 export interface RequestFormInput {
   requestType:         RequestType
   dossierNumber:       string
@@ -141,9 +156,11 @@ export interface AssistanceRequest extends RequestFormInput {
   transfers:            RequestTransfer[]
   timeline:             RequestTimelineEvent[]
   extensions?:          ExtensionRequest[]
-  createdAt:            Date
-  createdByUserId:      string
-  createdByName:        string
+  coverageType?:         CoverageType
+  requesterAccountType?: AccountType
+  createdAt:             Date
+  createdByUserId:       string
+  createdByName:         string
 }
 
 export function getEffectiveDuration(request: AssistanceRequest): number {
