@@ -1,5 +1,6 @@
 import { supabase }        from '@/lib/supabaseClient'
 import { getRequestById }  from './requestService'
+import { logAdminAction }  from './adminAuditService'
 import type { AssistanceRequest } from '@/types/request'
 import type { AdminUxStatus, AdminUrgencyLevel, AdminPaymentStatus } from '@/types/adminReservation'
 import { REQUIRED_DOCS_BY_STATUS } from '@/types/adminReservation'
@@ -145,6 +146,13 @@ export async function getAdminDossier(id: string): Promise<AdminDossierData | nu
 
 export async function saveAdminNote(requestId: string, note: string): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser()
+
+  const { data: before } = await supabase
+    .from('assistance_requests')
+    .select('admin_notes')
+    .eq('id', requestId)
+    .single()
+
   const { error } = await supabase
     .from('assistance_requests')
     .update({
@@ -153,12 +161,29 @@ export async function saveAdminNote(requestId: string, note: string): Promise<bo
       admin_updated_by: user?.id ?? null,
     })
     .eq('id', requestId)
+
   if (error) { console.error('[adminDossierService] saveAdminNote:', error.message); return false }
+
+  await logAdminAction({
+    action:     'note_saved',
+    targetType: 'request',
+    targetId:   requestId,
+    beforeJson: { admin_notes: (before as { admin_notes: string | null } | null)?.admin_notes ?? null },
+    afterJson:  { admin_notes: note || null },
+  })
+
   return true
 }
 
 export async function saveAdminFlags(requestId: string, flags: string[]): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser()
+
+  const { data: before } = await supabase
+    .from('assistance_requests')
+    .select('admin_flags')
+    .eq('id', requestId)
+    .single()
+
   const { error } = await supabase
     .from('assistance_requests')
     .update({
@@ -167,6 +192,16 @@ export async function saveAdminFlags(requestId: string, flags: string[]): Promis
       admin_updated_by: user?.id ?? null,
     })
     .eq('id', requestId)
+
   if (error) { console.error('[adminDossierService] saveAdminFlags:', error.message); return false }
+
+  await logAdminAction({
+    action:     'flags_updated',
+    targetType: 'request',
+    targetId:   requestId,
+    beforeJson: { admin_flags: (before as { admin_flags: string[] } | null)?.admin_flags ?? [] },
+    afterJson:  { admin_flags: flags },
+  })
+
   return true
 }
