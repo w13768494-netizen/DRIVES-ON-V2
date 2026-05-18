@@ -180,9 +180,10 @@ export async function getMatchingResults(params: MatchingParams): Promise<Matchi
 async function getMatchingResultsSupabase(params: MatchingParams): Promise<MatchingResult[]> {
   const { latitude, longitude, vehicleCategory, radiusKm = 50, durationDays } = params
 
-  const [agenciesRes, categoriesRes] = await Promise.all([
+  const [agenciesRes, categoriesRes, deliveryRes] = await Promise.all([
     supabase.from('rental_agencies').select('*').eq('active', true).eq('is_available', true),
     supabase.from('agency_vehicle_categories').select('*').eq('category', vehicleCategory).eq('available', true),
+    supabase.from('agency_services').select('agency_id').eq('type', 'livraison_vehicule').eq('available', true),
   ])
 
   if (agenciesRes.error) {
@@ -194,9 +195,12 @@ async function getMatchingResultsSupabase(params: MatchingParams): Promise<Match
     return []
   }
 
-  const agencies = (agenciesRes.data  ?? []) as RentalAgencyRow[]
-  const avcMap   = new Map(
+  const agencies     = (agenciesRes.data  ?? []) as RentalAgencyRow[]
+  const avcMap       = new Map(
     ((categoriesRes.data ?? []) as AgencyVehicleCategoryRow[]).map(r => [r.agency_id, r]),
+  )
+  const deliverySet  = new Set(
+    ((deliveryRes.data ?? []) as { agency_id: string }[]).map(r => r.agency_id),
   )
 
   const results: MatchingResult[] = []
@@ -223,6 +227,7 @@ async function getMatchingResultsSupabase(params: MatchingParams): Promise<Match
       modeleEquivalent: avc.modele_equivalent  ?? undefined,
       includedKmPerDay: avc.included_km_per_day > 0 ? avc.included_km_per_day : undefined,
       extraKmPrice:     avc.extra_km_price     > 0 ? avc.extra_km_price      : undefined,
+      hasDelivery:      deliverySet.has(agency.id),
       ...resolvePricingFromRow(avc, durationDays),
     })
   }

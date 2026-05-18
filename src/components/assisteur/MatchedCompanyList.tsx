@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   MapPin, Package, ChevronRight, Loader2, AlertCircle,
-  Navigation, Wrench, Tag, Star, ChevronDown, ChevronUp,
+  Navigation, Wrench, Tag, Star, ChevronDown, ChevronUp, Truck,
 } from 'lucide-react'
 import type { MatchingResult } from '@/types/matching'
 import type { VehicleCategoryType } from '@/types/vehicleCategory'
@@ -40,6 +40,7 @@ function CompanyCard({
     company, distanceKm, stockEstimate, available,
     effectivePricePerDay, effectiveTotalPrice, hasForfait,
     tarifBracketLabel, modeleEquivalent, includedKmPerDay, extraKmPrice,
+    hasDelivery,
   } = result
 
   const addressLine = [company.address, company.city].filter(Boolean).join(', ')
@@ -105,36 +106,53 @@ function CompanyCard({
           )}
 
           {/* Ligne 4 — Tarif */}
-          {effectivePricePerDay !== undefined && (
-            <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 mt-2">
-              <span className="text-sm font-bold text-slate-800">
-                {hasForfait ? 'Forfait' : `${effectivePricePerDay} €/j`}
-              </span>
-              {tarifBracketLabel && (
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-600">
-                  {tarifBracketLabel}
+          <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 mt-2">
+            {effectivePricePerDay !== undefined ? (
+              <>
+                <span className="text-sm font-bold text-slate-800">
+                  {hasForfait
+                    ? `Forfait 30j${effectiveTotalPrice !== undefined ? ` — ${effectiveTotalPrice} €` : ''}`
+                    : `${effectivePricePerDay} €/j`
+                  }
                 </span>
-              )}
-              {effectiveTotalPrice !== undefined && (
-                <span className="text-xs text-slate-500">
-                  → <span className="font-semibold text-slate-700">{effectiveTotalPrice} € HT</span> total
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Ligne 5 — Km + stock */}
-          <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 mt-1">
-            {includedKmPerDay !== undefined && (
-              <span className="text-xs text-slate-400">
-                {includedKmPerDay === 0 ? 'Km illimités' : `${includedKmPerDay} km/j inclus`}
-                {extraKmPrice !== undefined && <span> · {extraKmPrice} €/km suppl.</span>}
-              </span>
+                {tarifBracketLabel && !hasForfait && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-600">
+                    {tarifBracketLabel}
+                  </span>
+                )}
+                {effectiveTotalPrice !== undefined && !hasForfait && (
+                  <span className="text-xs text-slate-500">
+                    → <span className="font-semibold text-slate-700">{effectiveTotalPrice} € HT</span> total
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-xs text-slate-400 italic">Tarif non communiqué</span>
             )}
+          </div>
+
+          {/* Ligne 5 — Km + stock + livraison */}
+          <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 mt-1">
+            <span className="text-xs text-slate-400">
+              {includedKmPerDay === undefined
+                ? 'km non précisés'
+                : includedKmPerDay === 0
+                  ? 'Km illimités'
+                  : `${includedKmPerDay} km/j inclus`
+              }
+              {includedKmPerDay !== undefined && extraKmPrice !== undefined && (
+                <span> · {extraKmPrice} €/km suppl.</span>
+              )}
+            </span>
             {stockEstimate !== null && stockEstimate > 0 && (
               <span className="flex items-center gap-1 text-xs text-slate-400">
                 <Package className="w-3 h-3 shrink-0" />
                 {stockEstimate} dispo.
+              </span>
+            )}
+            {hasDelivery && (
+              <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-50 text-green-700">
+                <Truck className="w-3 h-3" /> Livraison disponible
               </span>
             )}
           </div>

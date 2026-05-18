@@ -32,4 +32,5 @@ export interface MatchingResult {
   modeleEquivalent?:     string         // modèle ou équivalent renseigné par le loueur
   includedKmPerDay?:     number         // km inclus par jour
   extraKmPrice?:         number         // prix km supplémentaire
+  hasDelivery?:          boolean        // true si livraison_vehicule disponible
 }
