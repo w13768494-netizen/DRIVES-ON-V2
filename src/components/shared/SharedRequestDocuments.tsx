@@ -33,7 +33,14 @@ export function SharedRequestDocuments({ requestId, viewerRole, status }: Props)
 
   const handleAdd = useCallback((doc: RequestDocument) => {
     setDocs(prev => [doc, ...prev])
-  }, [])
+    if (viewerRole === 'loueur') {
+      fetch('/api/notify-assisteur', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ requestId, eventType: 'loueur_document_ajoute' }),
+      }).catch(err => console.error('[SharedRequestDocuments] notify-assisteur failed:', err))
+    }
+  }, [viewerRole, requestId])
 
   const assisteurDocs = docs.filter(d => d.owner === 'assisteur')
   const loueurDocs    = docs.filter(d => d.owner === 'loueur')

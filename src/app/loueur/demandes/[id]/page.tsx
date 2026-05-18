@@ -14,7 +14,8 @@ import { RentalResponseForm }  from '@/components/loueur/RentalResponseForm'
 import { SharedRequestDocuments } from '@/components/shared/SharedRequestDocuments'
 import { RequestTimeline }     from '@/components/shared/RequestTimeline'
 import { getReceivedRequestById, respondToRequest } from '@/services/loueurService'
-import { respondToExtension, confirmVehicleReturn } from '@/services/requestService'
+import { respondToExtension } from '@/services/requestService'
+import { loueurConfirmReturn } from '@/services/loueurService'
 import { getDisplayStatus } from '@/lib/displayStatus'
 import { getEffectiveDuration } from '@/types/request'
 import type { ReceivedRequest, LoueurAction } from '@/types/loueur'
@@ -182,7 +183,7 @@ const handleConfirmReturn = useCallback(async () => {
     if (!request) return
     setReturnLoading(true)
     const returnedAt = new Date(`${returnDate}T${returnTime}`)
-    const updated = await confirmVehicleReturn(request.id, returnedAt)
+    const updated = await loueurConfirmReturn(request.id, returnedAt)
     if (updated) setRequest(r => r ? { ...r, ...updated } : r)
     setReturnLoading(false)
   }, [request, returnDate, returnTime])

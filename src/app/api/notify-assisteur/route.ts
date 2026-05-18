@@ -17,10 +17,11 @@ interface EventLabel {
 }
 
 const EVENT_LABELS: Record<string, EventLabel> = {
-  loueur_accepte:        { title: 'Réponse reçue',      body: p => `${p.agencyName} confirme à ${p.pricePerDay ?? '?'} €/j` },
-  loueur_contre_propose: { title: 'Contre-proposition', body: p => `${p.agencyName} propose ${p.pricePerDay ?? '?'} €/j — à valider` },
-  loueur_refuse:         { title: 'Demande refusée',    body: p => `${p.agencyName} ne peut pas honorer cette demande` },
-  retour_confirme:       { title: 'Retour confirmé',    body: p => `${p.agencyName} — véhicule rendu, paiement à valider` },
+  loueur_accepte:          { title: 'Réponse reçue',      body: p => `${p.agencyName} confirme à ${p.pricePerDay ?? '?'} €/j` },
+  loueur_contre_propose:   { title: 'Contre-proposition', body: p => `${p.agencyName} propose ${p.pricePerDay ?? '?'} €/j — à valider` },
+  loueur_refuse:           { title: 'Demande refusée',    body: p => `${p.agencyName} ne peut pas honorer cette demande` },
+  retour_confirme:         { title: 'Retour confirmé',    body: p => `${p.agencyName} — véhicule rendu, paiement à valider` },
+  loueur_document_ajoute:  { title: 'Document déposé',   body: p => `${p.agencyName} a ajouté un document sur ce dossier` },
 }
 
 export async function POST(req: NextRequest) {

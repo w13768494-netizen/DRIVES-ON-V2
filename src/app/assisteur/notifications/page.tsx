@@ -2,15 +2,17 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, CheckCheck, CheckCircle2, XCircle, ArrowRightLeft, Loader2 } from 'lucide-react'
+import { Bell, CheckCheck, CheckCircle2, XCircle, ArrowRightLeft, Loader2, Car, FileText } from 'lucide-react'
 import { getNotifications, markAsRead, markAllAsRead } from '@/services/notificationService'
 import type { PlatformNotification } from '@/services/notificationService'
 
 function NotifIcon({ type, isUnread }: { type: string; isUnread: boolean }) {
   const cls = `w-4 h-4 ${isUnread ? 'text-brand-600' : 'text-slate-400'}`
-  if (type === 'loueur_accepte')        return <CheckCircle2 className={cls} />
-  if (type === 'loueur_contre_propose') return <ArrowRightLeft className={cls} />
-  if (type === 'loueur_refuse')         return <XCircle className={cls} />
+  if (type === 'loueur_accepte')         return <CheckCircle2   className={cls} />
+  if (type === 'loueur_contre_propose')  return <ArrowRightLeft className={cls} />
+  if (type === 'loueur_refuse')          return <XCircle        className={cls} />
+  if (type === 'retour_confirme')        return <Car            className={cls} />
+  if (type === 'loueur_document_ajoute') return <FileText       className={cls} />
   return <Bell className={cls} />
 }
 
