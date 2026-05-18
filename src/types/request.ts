@@ -161,6 +161,10 @@ export interface AssistanceRequest extends RequestFormInput {
   createdAt:             Date
   createdByUserId:       string
   createdByName:         string
+  adminNotes?:           string | null
+  adminFlags?:           string[]
+  adminUpdatedAt?:       Date
+  adminUpdatedBy?:       string
 }
 
 export function getEffectiveDuration(request: AssistanceRequest): number {

@@ -1,7 +1,7 @@
-import { getAllRequests }          from './requestService'
-import { MOCK_REQUEST_DOCUMENTS }  from '@/data/mockRequestDocuments'
+import { getAllRequests }   from './requestService'
+import { supabase }        from '@/lib/supabaseClient'
 import type { AssistanceRequest, RequestStatus } from '@/types/request'
-import type { RequestDocumentType, RequestDocument } from '@/types/requestDocument'
+import type { RequestDocumentType } from '@/types/requestDocument'
 import type {
   AdminReservation, AdminUxStatus, AdminUrgencyLevel,
   AdminPaymentStatus, AdminReservationKpis,
@@ -9,24 +9,20 @@ import type {
 import { REQUIRED_DOCS_BY_STATUS } from '@/types/adminReservation'
 
 // ── Documents batch loader ────────────────────────────────────────────────────
-// Charge tous les documents en une seule passe (pas de N+1)
+// Charge tous les documents en une seule requête Supabase (pas de N+1)
 
-function loadDocsByRequest(): Map<string, RequestDocumentType[]> {
-  let docs: RequestDocument[] = [...MOCK_REQUEST_DOCUMENTS]
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = localStorage.getItem('driveson:documents:v3')
-      if (raw) {
-        const parsed = JSON.parse(raw) as RequestDocument[]
-        if (Array.isArray(parsed)) docs = parsed
-      }
-    } catch { /* ignore */ }
-  }
-
+async function loadDocsByRequest(requestIds: string[]): Promise<Map<string, RequestDocumentType[]>> {
   const map = new Map<string, RequestDocumentType[]>()
-  for (const doc of docs) {
-    if (!map.has(doc.requestId)) map.set(doc.requestId, [])
-    map.get(doc.requestId)!.push(doc.type)
+  if (requestIds.length === 0) return map
+  const { data, error } = await supabase
+    .from('request_documents')
+    .select('request_id, type')
+    .in('request_id', requestIds)
+  if (error) { console.error('[adminReservationService] docs:', error.message); return map }
+  for (const doc of (data ?? []) as { request_id: string; type: string }[]) {
+    const list = map.get(doc.request_id) ?? []
+    list.push(doc.type as RequestDocumentType)
+    map.set(doc.request_id, list)
   }
   return map
 }
@@ -135,10 +131,8 @@ const URGENCY_ORDER: Record<AdminUrgencyLevel, number> = {
 }
 
 export async function getAdminReservations(): Promise<AdminReservation[]> {
-  const [requests, docsMap] = await Promise.all([
-    getAllRequests(),
-    Promise.resolve(loadDocsByRequest()),
-  ])
+  const requests = await getAllRequests()
+  const docsMap  = await loadDocsByRequest(requests.map(r => r.id))
 
   return requests
     .map(r => enrichRequest(r, docsMap))

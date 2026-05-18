@@ -293,7 +293,7 @@ function ReservationDrawer({
         {/* Footer actions */}
         <div className="px-5 py-4 border-t border-slate-200 bg-slate-50">
           <Link
-            href={`/assisteur/demandes/${reservation.id}`}
+            href={`/admin/demandes/${reservation.id}`}
             target="_blank"
             className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-[#2B45D4] hover:bg-[#2338b8] text-white text-sm font-semibold rounded-xl transition-colors"
           >

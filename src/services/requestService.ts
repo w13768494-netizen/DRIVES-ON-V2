@@ -58,6 +58,10 @@ interface DbRow {
   created_at:             string
   created_by_user_id:     string | null
   created_by_name:        string | null
+  admin_notes:            string | null
+  admin_flags:            string[] | null
+  admin_updated_at:       string | null
+  admin_updated_by:       string | null
 }
 
 // ── Mapping helpers ───────────────────────────────────────────────────────────
@@ -103,6 +107,10 @@ function rowToRequest(row: DbRow): AssistanceRequest {
     createdAt:            new Date(row.created_at),
     createdByUserId:      row.created_by_user_id ?? 'unknown',
     createdByName:        row.created_by_name    ?? 'Inconnu',
+    adminNotes:           row.admin_notes     ?? undefined,
+    adminFlags:           row.admin_flags     ?? [],
+    adminUpdatedAt:       row.admin_updated_at ? new Date(row.admin_updated_at) : undefined,
+    adminUpdatedBy:       row.admin_updated_by ?? undefined,
   }
 }
 
@@ -141,6 +149,10 @@ function requestToRow(r: AssistanceRequest): Record<string, unknown> {
     created_at:             r.createdAt.toISOString(),
     created_by_user_id:     r.createdByUserId,
     created_by_name:        r.createdByName,
+    admin_notes:            r.adminNotes     ?? null,
+    admin_flags:            r.adminFlags     ?? [],
+    admin_updated_at:       r.adminUpdatedAt?.toISOString() ?? null,
+    admin_updated_by:       r.adminUpdatedBy ?? null,
   }
 }
 
@@ -177,6 +189,10 @@ function patchToRow(patch: Partial<AssistanceRequest>): Record<string, unknown> 
     requesterAccountType: 'requester_account_type',
     createdByUserId:      'created_by_user_id',
     createdByName:        'created_by_name',
+    adminNotes:           'admin_notes',
+    adminFlags:           'admin_flags',
+    adminUpdatedAt:       'admin_updated_at',
+    adminUpdatedBy:       'admin_updated_by',
   }
   const row: Record<string, unknown> = {}
   for (const [camel, snake] of Object.entries(map)) {
