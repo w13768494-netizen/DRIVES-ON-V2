@@ -11,7 +11,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 }
 
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
-  assistance:      'Assisteur',
+  assistance:      'Assistance',
   insurance_agent: "Agent d'assurance",
   garage:          'Garage',
 }

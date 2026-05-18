@@ -1,9 +1,12 @@
+import type { AccountType } from './session'
+
 export type AdminUserRole = 'assisteur' | 'loueur' | 'admin'
 
 export interface AdminUser {
   id:              string
   email:           string
   role:            AdminUserRole
+  account_type:    AccountType | null
   full_name:       string
   company_name:    string | null
   phone:           string | null

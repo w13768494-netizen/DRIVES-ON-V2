@@ -13,7 +13,7 @@ export async function GET() {
 
   const { data: profiles, error: profErr } = await supabaseAdmin
     .from('profiles')
-    .select('id, role, full_name, company_name, phone, is_active')
+    .select('id, role, account_type, full_name, company_name, phone, is_active')
   if (profErr) return NextResponse.json({ error: profErr.message }, { status: 500 })
 
   const profileMap = new Map((profiles ?? []).map(p => [p.id as string, p]))
@@ -42,6 +42,7 @@ export async function GET() {
         id:              u.id,
         email:           u.email ?? '',
         role:            p.role as AdminUser['role'],
+        account_type:    (p.account_type as AdminUser['account_type']) ?? null,
         full_name:       p.full_name as string,
         company_name:    (p.company_name as string | null) ?? null,
         phone:           (p.phone as string | null) ?? null,

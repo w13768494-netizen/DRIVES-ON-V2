@@ -6,24 +6,37 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Plus, Search, Loader2, Users, X, Building2, Mail, Phone,
   ShieldCheck, Truck, Shield, MoreVertical, Check,
-  UserX, UserCheck, Trash2, AlertTriangle, Pencil,
+  UserX, UserCheck, Trash2, AlertTriangle, Pencil, Wrench,
 } from 'lucide-react'
 import type { AdminUser, AdminUserRole } from '@/types/adminUser'
+import type { AccountType } from '@/types/session'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-type Filter = 'tous' | 'loueur' | 'assisteur' | 'suspendu'
+type Filter = 'tous' | 'loueur' | 'assistance' | 'insurance_agent' | 'garage' | 'suspendu'
 
 const ROLE_LABELS: Record<AdminUserRole, string> = {
   admin:     'Admin',
   loueur:    'Loueur',
-  assisteur: 'Assisteur',
+  assisteur: 'Espace Pro',
 }
 
 const ROLE_COLORS: Record<AdminUserRole, string> = {
   admin:     'bg-purple-50 text-purple-700 border border-purple-200',
   loueur:    'bg-orange-50 text-orange-700 border border-orange-200',
   assisteur: 'bg-blue-50 text-blue-700 border border-blue-200',
+}
+
+const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+  assistance:      'Assistance',
+  insurance_agent: 'Agent assurance',
+  garage:          'Garage',
+}
+
+const ACCOUNT_TYPE_COLORS: Record<AccountType, string> = {
+  assistance:      'bg-blue-50 text-blue-600 border border-blue-200',
+  insurance_agent: 'bg-violet-50 text-violet-700 border border-violet-200',
+  garage:          'bg-orange-50 text-orange-600 border border-orange-200',
 }
 
 // ── User Row ──────────────────────────────────────────────────────────────────
@@ -85,6 +98,11 @@ function UserRow({
           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${ROLE_COLORS[user.role]}`}>
             {ROLE_LABELS[user.role]}
           </span>
+          {user.role === 'assisteur' && user.account_type && (
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${ACCOUNT_TYPE_COLORS[user.account_type]}`}>
+              {ACCOUNT_TYPE_LABELS[user.account_type]}
+            </span>
+          )}
           {user.role === 'loueur' && (
             <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
               <Building2 className="w-2.5 h-2.5" />
@@ -290,7 +308,7 @@ function EditDrawer({
               disabled={isSelf}
               className={`${inputCls} ${isSelf ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              <option value="assisteur">Assisteur</option>
+              <option value="assisteur">Espace Pro</option>
               <option value="loueur">Loueur</option>
               <option value="admin">Admin</option>
             </select>
@@ -408,17 +426,21 @@ export default function AdminUtilisateursPage() {
 
   // Filter counts
   const counts: Record<Filter, number> = {
-    tous:      users.length,
-    loueur:    users.filter(u => u.role === 'loueur').length,
-    assisteur: users.filter(u => u.role === 'assisteur').length,
-    suspendu:  users.filter(u => !u.is_active).length,
+    tous:            users.length,
+    loueur:          users.filter(u => u.role === 'loueur').length,
+    assistance:      users.filter(u => u.role === 'assisteur' && u.account_type === 'assistance').length,
+    insurance_agent: users.filter(u => u.role === 'assisteur' && u.account_type === 'insurance_agent').length,
+    garage:          users.filter(u => u.role === 'assisteur' && u.account_type === 'garage').length,
+    suspendu:        users.filter(u => !u.is_active).length,
   }
 
   const filtered = users
     .filter(u => {
-      if (filter === 'loueur')    return u.role === 'loueur'
-      if (filter === 'assisteur') return u.role === 'assisteur'
-      if (filter === 'suspendu')  return !u.is_active
+      if (filter === 'loueur')          return u.role === 'loueur'
+      if (filter === 'assistance')      return u.role === 'assisteur' && u.account_type === 'assistance'
+      if (filter === 'insurance_agent') return u.role === 'assisteur' && u.account_type === 'insurance_agent'
+      if (filter === 'garage')          return u.role === 'assisteur' && u.account_type === 'garage'
+      if (filter === 'suspendu')        return !u.is_active
       return true
     })
     .filter(u => {
@@ -437,10 +459,12 @@ export default function AdminUtilisateursPage() {
   }
 
   const FILTER_LABELS: Record<Filter, React.ReactNode> = {
-    tous:      'Tous',
-    loueur:    <><Truck      className="w-3 h-3" /> Loueurs</>,
-    assisteur: <><ShieldCheck className="w-3 h-3" /> Assisteurs</>,
-    suspendu:  <><UserX      className="w-3 h-3" /> Suspendus</>,
+    tous:            'Tous',
+    loueur:          <><Truck       className="w-3 h-3" /> Loueurs</>,
+    assistance:      <><ShieldCheck className="w-3 h-3" /> Assistance</>,
+    insurance_agent: <><Building2   className="w-3 h-3" /> Agents assurance</>,
+    garage:          <><Wrench      className="w-3 h-3" /> Garages</>,
+    suspendu:        <><UserX       className="w-3 h-3" /> Suspendus</>,
   }
 
   return (
@@ -462,7 +486,7 @@ export default function AdminUtilisateursPage() {
 
       {/* Filters */}
       <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 shadow-sm w-fit flex-wrap">
-        {(['tous', 'loueur', 'assisteur', 'suspendu'] as Filter[]).map(f => (
+        {(['tous', 'loueur', 'assistance', 'insurance_agent', 'garage', 'suspendu'] as Filter[]).map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}

@@ -13,7 +13,19 @@ import { getSession } from '@/services/currentSessionService'
 import { signOut }    from '@/services/authService'
 import { getUnreadCount } from '@/services/notificationService'
 import { ASSISTANCE_USER_ROLE_LABELS, ASSISTANCE_USER_ROLE_COLORS } from '@/types/assistanceUser'
-import type { MockSession } from '@/types/session'
+import type { MockSession, AccountType } from '@/types/session'
+
+const ACCOUNT_TYPE_SIDEBAR_LABELS: Record<AccountType, string> = {
+  assistance:      'Assistance',
+  insurance_agent: 'Agent assurance',
+  garage:          'Garage',
+}
+
+const ACCOUNT_TYPE_SIDEBAR_COLORS: Record<AccountType, string> = {
+  assistance:      'bg-blue-50 text-blue-600',
+  insurance_agent: 'bg-violet-50 text-violet-700',
+  garage:          'bg-orange-50 text-orange-600',
+}
 
 // ── Nav items config ──────────────────────────────────────────────────────────
 
@@ -223,6 +235,11 @@ export function SidebarShell({ role, children }: Props) {
               {session.companyRole && (
                 <span className={`inline-block mt-1.5 text-xs font-semibold px-2 py-0.5 rounded-full ${ASSISTANCE_USER_ROLE_COLORS[session.companyRole]}`}>
                   {ASSISTANCE_USER_ROLE_LABELS[session.companyRole]}
+                </span>
+              )}
+              {role === 'assisteur' && session.accountType && (
+                <span className={`inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full ${ACCOUNT_TYPE_SIDEBAR_COLORS[session.accountType]}`}>
+                  {ACCOUNT_TYPE_SIDEBAR_LABELS[session.accountType]}
                 </span>
               )}
             </div>
