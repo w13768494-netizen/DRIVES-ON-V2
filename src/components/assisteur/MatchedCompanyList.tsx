@@ -40,7 +40,7 @@ function CompanyCard({
     company, distanceKm, stockEstimate, available,
     effectivePricePerDay, effectiveTotalPrice, hasForfait,
     tarifBracketLabel, modeleEquivalent, includedKmPerDay, extraKmPrice,
-    hasDelivery,
+    hasDelivery, variantId, fuelType, transmission,
   } = result
 
   const addressLine = [company.address, company.city].filter(Boolean).join(', ')
@@ -100,9 +100,23 @@ function CompanyCard({
             </span>
           </p>
 
-          {/* Ligne 3 — Modèle équivalent */}
+          {/* Ligne 3 — Modèle équivalent + motorisation */}
           {modeleEquivalent && (
             <p className="text-xs text-slate-500 mt-1 italic">{modeleEquivalent}</p>
+          )}
+          {(fuelType || transmission) && (
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              {fuelType && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                  {fuelType.charAt(0).toUpperCase() + fuelType.slice(1)}
+                </span>
+              )}
+              {transmission && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                  {transmission.charAt(0).toUpperCase() + transmission.slice(1)}
+                </span>
+              )}
+            </div>
           )}
 
           {/* Ligne 4 — Tarif */}
@@ -173,7 +187,7 @@ export function MatchedCompanyList({ results, vehicleCategory, durationDays, onB
   const [selected, setSelected] = useState<Set<string>>(
     () => {
       const best = top3.find(r => r.available)
-      return best ? new Set([best.company.id]) : new Set()
+      return best ? new Set([best.variantId ?? best.company.id]) : new Set()
     }
   )
   const [showMore, setShowMore] = useState(false)
@@ -182,11 +196,16 @@ export function MatchedCompanyList({ results, vehicleCategory, durationDays, onB
   const [selectedServices, setSelectedServices] = useState<Set<AgencyServiceType>>(new Set())
   const [targetPrice, setTargetPrice]           = useState('')
 
+  const selectedCompanyIds = useMemo(
+    () => [...new Set(results.filter(r => selected.has(r.variantId ?? r.company.id)).map(r => r.company.id))],
+    [selected, results],
+  )
+
   useEffect(() => {
-    if (selected.size === 0) { setAgencyServices([]); return }
-    Promise.all([...selected].map(id => getServicesByAgency(id)))
+    if (selectedCompanyIds.length === 0) { setAgencyServices([]); return }
+    Promise.all(selectedCompanyIds.map(id => getServicesByAgency(id)))
       .then(all => setAgencyServices(all.flat()))
-  }, [selected])
+  }, [selectedCompanyIds])
 
   const availableServiceTypes = useMemo((): AgencyServiceType[] => {
     const seen = new Set<AgencyServiceType>()
@@ -219,8 +238,6 @@ export function MatchedCompanyList({ results, vehicleCategory, durationDays, onB
       return next
     })
   }
-
-  const selectedIds = [...selected]
 
   if (results.length === 0) {
     return (
@@ -274,12 +291,12 @@ export function MatchedCompanyList({ results, vehicleCategory, durationDays, onB
         </div>
         {top3.map((result, i) => (
           <CompanyCard
-            key={result.company.id}
+            key={result.variantId ?? result.company.id}
             result={result}
-            isSelected={selected.has(result.company.id)}
+            isSelected={selected.has(result.variantId ?? result.company.id)}
             isTop={true}
             rank={i + 1}
-            onToggle={() => toggle(result.company.id)}
+            onToggle={() => toggle(result.variantId ?? result.company.id)}
           />
         ))}
       </div>
@@ -302,11 +319,11 @@ export function MatchedCompanyList({ results, vehicleCategory, durationDays, onB
             <div className="flex flex-col gap-2 pl-0">
               {rest.map(result => (
                 <CompanyCard
-                  key={result.company.id}
+                  key={result.variantId ?? result.company.id}
                   result={result}
-                  isSelected={selected.has(result.company.id)}
+                  isSelected={selected.has(result.variantId ?? result.company.id)}
                   isTop={false}
-                  onToggle={() => toggle(result.company.id)}
+                  onToggle={() => toggle(result.variantId ?? result.company.id)}
                 />
               ))}
             </div>
@@ -376,9 +393,9 @@ export function MatchedCompanyList({ results, vehicleCategory, durationDays, onB
         </button>
         <button
           type="button"
-          disabled={selectedIds.length === 0 || loading}
+          disabled={selectedCompanyIds.length === 0 || loading}
           onClick={() => onConfirm(
-            selectedIds,
+            selectedCompanyIds,
             [...selectedServices],
             agencyServices.filter(s => selectedServices.has(s.type) && s.available),
             targetPrice ? Number(targetPrice) : undefined,
@@ -389,7 +406,7 @@ export function MatchedCompanyList({ results, vehicleCategory, durationDays, onB
             <><Loader2 className="w-4 h-4 animate-spin" />Envoi en cours…</>
           ) : (
             <>
-              Envoyer{selectedIds.length > 1 ? ` à ${selectedIds.length} loueurs` : selectedIds.length === 1 ? ' au loueur sélectionné' : ''}
+              Envoyer{selectedCompanyIds.length > 1 ? ` à ${selectedCompanyIds.length} loueurs` : selectedCompanyIds.length === 1 ? ' au loueur sélectionné' : ''}
               {targetPrice && <span className="ml-1 opacity-80">· {targetPrice} €/j</span>}
               <ChevronRight className="w-4 h-4" />
             </>

@@ -23,6 +23,8 @@ export interface AgencyVehicleCategoryRow {
   tarif_22_29?:        number | null
   forfait_30_jours?:   number | null
   actif?:              boolean
+  fuel_type?:          string | null
+  transmission?:       string | null
 }
 
 export type AgencyVehicleCategoryInput = {
@@ -52,6 +54,8 @@ export interface LoueurTarifInput {
   included_km_per_day?: number
   extra_km_price?:      number
   actif:                boolean
+  fuel_type?:           string | null
+  transmission?:        string | null
 }
 
 export async function getAgencyVehicleCategories(agencyId: string): Promise<AgencyVehicleCategoryRow[]> {
@@ -94,6 +98,8 @@ export async function saveLoueurTarifs(
   const supabase = createClient()
   const patch = {
     modele_equivalent:   input.modele_equivalent   ?? null,
+    fuel_type:           input.fuel_type           ?? null,
+    transmission:        input.transmission        ?? null,
     tarif_1_4:           input.tarif_1_4           ?? null,
     tarif_5_7:           input.tarif_5_7           ?? null,
     tarif_8_14:          input.tarif_8_14          ?? null,

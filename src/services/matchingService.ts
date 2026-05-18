@@ -196,9 +196,12 @@ async function getMatchingResultsSupabase(params: MatchingParams): Promise<Match
   }
 
   const agencies     = (agenciesRes.data  ?? []) as RentalAgencyRow[]
-  const avcMap       = new Map(
-    ((categoriesRes.data ?? []) as AgencyVehicleCategoryRow[]).map(r => [r.agency_id, r]),
-  )
+  const avcMap       = new Map<string, AgencyVehicleCategoryRow[]>()
+  for (const r of (categoriesRes.data ?? []) as AgencyVehicleCategoryRow[]) {
+    const list = avcMap.get(r.agency_id) ?? []
+    list.push(r)
+    avcMap.set(r.agency_id, list)
+  }
   const deliverySet  = new Set(
     ((deliveryRes.data ?? []) as { agency_id: string }[]).map(r => r.agency_id),
   )
@@ -208,28 +211,33 @@ async function getMatchingResultsSupabase(params: MatchingParams): Promise<Match
   for (const agency of agencies) {
     if (!agency.lat || !agency.lng) continue
 
-    const avc = avcMap.get(agency.id)
-    if (!avc) continue
-
-    if (!avc.available || avc.stock_estimate <= 0) continue
+    const variants = avcMap.get(agency.id)
+    if (!variants || variants.length === 0) continue
 
     const distanceKm = computeDistance(latitude, longitude, agency.lat, agency.lng)
     if (distanceKm > radiusKm) continue
 
-    const company = agencyToCompany(agency, avc)
-    results.push({
-      company:          { ...company, distanceKm },
-      distanceKm,
-      stockEstimate:    avc.stock_estimate,
-      available:        true,
-      score:            computeScoreFromRow(avc, distanceKm, radiusKm),
-      isRecommended:    false,
-      modeleEquivalent: avc.modele_equivalent  ?? undefined,
-      includedKmPerDay: avc.included_km_per_day > 0 ? avc.included_km_per_day : undefined,
-      extraKmPrice:     avc.extra_km_price     > 0 ? avc.extra_km_price      : undefined,
-      hasDelivery:      deliverySet.has(agency.id),
-      ...resolvePricingFromRow(avc, durationDays),
-    })
+    for (const avc of variants) {
+      if (!avc.available || avc.stock_estimate <= 0) continue
+
+      const company = agencyToCompany(agency, avc)
+      results.push({
+        company:          { ...company, distanceKm },
+        distanceKm,
+        stockEstimate:    avc.stock_estimate,
+        available:        true,
+        score:            computeScoreFromRow(avc, distanceKm, radiusKm),
+        isRecommended:    false,
+        modeleEquivalent: avc.modele_equivalent  ?? undefined,
+        includedKmPerDay: avc.included_km_per_day > 0 ? avc.included_km_per_day : undefined,
+        extraKmPrice:     avc.extra_km_price     > 0 ? avc.extra_km_price      : undefined,
+        hasDelivery:      deliverySet.has(agency.id),
+        variantId:        avc.id,
+        fuelType:         avc.fuel_type    ?? undefined,
+        transmission:     avc.transmission ?? undefined,
+        ...resolvePricingFromRow(avc, durationDays),
+      })
+    }
   }
 
   results.sort((a, b) => b.score.total - a.score.total)
