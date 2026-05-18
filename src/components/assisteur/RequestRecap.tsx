@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import {
   MapPin, Car, Calendar, Clock, User, Phone, Mail, CreditCard,
   ShieldCheck, ShieldAlert, Wallet, CheckCircle2, XCircle,
   Truck, Navigation, ArrowRight, Loader2, Hash, Zap, CalendarClock,
+  AlertTriangle,
 } from 'lucide-react'
 import { format, addDays } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -87,8 +88,10 @@ export function RequestRecap({ input, companies, serviceTypes, agencyServices, t
   const { sinistre, location, vehicleCategory, dateNeeded, durationDays, maxExtensionDays, coverage } = input
   const [coverageFile, setCoverageFile] = useState<File | null>(null)
   const [coverageUrl,  setCoverageUrl]  = useState('')
+  const uploaderRef = useRef<HTMLDivElement>(null)
 
-  const hasCoverage = !!(coverageFile || coverageUrl.trim())
+  const hasCoverage          = !!(coverageFile || coverageUrl.trim())
+  const needsCoverageWarning = coverage.creditType !== 'client' && !hasCoverage
 
   function resolveSupplementsFor(type: AgencyServiceType, services: AgencyService[]) {
     const matches = services.filter(s => s.type === type && s.available)
@@ -266,20 +269,46 @@ export function RequestRecap({ input, companies, serviceTypes, agencyServices, t
       )}
 
       {/* Document de prise en charge */}
-      <AssisteurCoverageUploader
-        file={coverageFile}
-        onFileSelect={setCoverageFile}
-        url={coverageUrl}
-        onUrlChange={setCoverageUrl}
-      />
+      <div ref={uploaderRef}>
+        <AssisteurCoverageUploader
+          file={coverageFile}
+          onFileSelect={setCoverageFile}
+          url={coverageUrl}
+          onUrlChange={setCoverageUrl}
+        />
+      </div>
 
-      {/* Warning prise en charge manquante */}
-      {!hasCoverage && (
-        <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
-          <span className="text-amber-500 text-base shrink-0 mt-0.5">⚠</span>
-          <div className="text-sm text-amber-700">
-            <span className="font-semibold">Prise en charge non jointe</span>
-            <span className="font-normal"> — le loueur ne la recevra pas avec la demande.</span>
+      {/* Warning fort — prise en charge manquante (full ou partial uniquement) */}
+      {needsCoverageWarning && (
+        <div className="rounded-2xl border-2 border-orange-300 bg-orange-50 p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-black text-orange-800">Prise en charge non jointe</p>
+              <p className="text-xs text-orange-700 mt-0.5">
+                Les loueurs peuvent exiger ce document avant de confirmer.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => uploaderRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+              className="flex-1 px-3 py-2.5 rounded-xl border-2 border-orange-400 text-orange-700 text-sm font-semibold hover:bg-orange-100 transition-colors"
+            >
+              Joindre maintenant
+            </button>
+            <button
+              type="button"
+              onClick={() => onSend(undefined, undefined)}
+              disabled={loading}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+            >
+              {loading
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Envoi en cours…</>
+                : 'Envoyer quand même'
+              }
+            </button>
           </div>
         </div>
       )}
@@ -292,22 +321,19 @@ export function RequestRecap({ input, companies, serviceTypes, agencyServices, t
         >
           ← Modifier
         </button>
-        <button
-          type="button" onClick={() => onSend(coverageFile ?? undefined, coverageUrl || undefined)} disabled={loading}
-          className={[
-            'flex-1 flex items-center justify-center gap-2 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors disabled:opacity-50',
-            hasCoverage
-              ? 'bg-brand-500 hover:bg-brand-600 text-white'
-              : 'bg-amber-500 hover:bg-amber-600 text-white',
-          ].join(' ')}
-        >
-          {loading
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> Envoi en cours…</>
-            : hasCoverage
-              ? <>Confirmer et envoyer <ArrowRight className="w-4 h-4" /></>
-              : <>Envoyer quand même <ArrowRight className="w-4 h-4" /></>
-          }
-        </button>
+        {!needsCoverageWarning && (
+          <button
+            type="button"
+            onClick={() => onSend(coverageFile ?? undefined, coverageUrl || undefined)}
+            disabled={loading}
+            className="flex-1 flex items-center justify-center gap-2 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors disabled:opacity-50 bg-brand-500 hover:bg-brand-600 text-white"
+          >
+            {loading
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Envoi en cours…</>
+              : <>Confirmer et envoyer <ArrowRight className="w-4 h-4" /></>
+            }
+          </button>
+        )}
       </div>
     </div>
   )
