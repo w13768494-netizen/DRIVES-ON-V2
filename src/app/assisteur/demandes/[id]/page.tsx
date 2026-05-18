@@ -144,6 +144,16 @@ export default function DemandeDetailPage({
         resp={resp ?? null}
         agency={agency}
         durationDays={request.durationDays}
+        offerAction={offerAction}
+        onValidate={handleValidateOffer}
+        onRefuse={handleRefuseOffer}
+      />
+
+      {/* ── Loueurs contactés ── */}
+      <ContactedAgenciesSection
+        agencyCount={(request.assignedAgencyIds ?? [request.assignedAgencyId].filter(Boolean)).length}
+        loueurResponse={resp}
+        status={request.status}
       />
 
       {/* Header dossier */}
@@ -233,17 +243,6 @@ export default function DemandeDetailPage({
           transfer={pendingTransfer}
           onValidate={handleValidateTransfer}
           onRefuse={handleRefuseTransfer}
-        />
-      )}
-
-      {/* ── Validation contre-proposition ── */}
-      {request.status === 'acceptee' && resp && (
-        <CounterOfferValidationCard
-          response={resp}
-          durationDays={request.durationDays}
-          offerAction={offerAction}
-          onValidate={handleValidateOffer}
-          onRefuse={handleRefuseOffer}
         />
       )}
 
@@ -421,23 +420,27 @@ export default function DemandeDetailPage({
 // ── Bloc action rapide ────────────────────────────────────────────────────────
 
 function ActionBanner({
-  status, agencyCount, resp, agency, durationDays,
+  status, agencyCount, resp, agency, durationDays, offerAction, onValidate, onRefuse,
 }: {
   status:       string
   agencyCount:  number
   resp:         NonNullable<AssistanceRequest['loueurResponse']> | null
   agency:       RentalAgency | null
   durationDays: number
+  offerAction?: 'validating' | 'refusing' | null
+  onValidate?:  () => void
+  onRefuse?:    () => void
 }) {
   if (status === 'envoyee') {
     return (
-      <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl">
-        <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
-        <p className="text-sm font-semibold text-amber-800">
-          En attente de réponse
-          <span className="font-normal text-amber-700 ml-1">
-            — demande envoyée à {agencyCount} loueur{agencyCount > 1 ? 's' : ''}
-          </span>
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 space-y-1.5">
+        <div className="flex items-center gap-3">
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+          <p className="text-sm font-bold text-amber-800">En attente de réponse</p>
+        </div>
+        <p className="text-xs text-amber-700 pl-5">
+          Demande envoyée à <strong>{agencyCount} loueur{agencyCount > 1 ? 's' : ''}</strong>.
+          Vous serez notifié dès qu'un loueur répond.
         </p>
       </div>
     )
@@ -446,20 +449,71 @@ function ActionBanner({
   if (status === 'acceptee' && resp) {
     const total = resp.pricePerDay != null ? resp.pricePerDay * durationDays : null
     return (
-      <div className="flex items-start gap-3 px-4 py-3 bg-teal-50 border-2 border-teal-300 rounded-2xl">
-        <Euro className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-teal-800">
-            Réponse reçue — action requise
-          </p>
-          <p className="text-xs text-teal-700 mt-0.5">
-            <span className="font-semibold">{resp.agencyName}</span>
-            {resp.pricePerDay != null && (
-              <> propose <span className="font-black">{resp.pricePerDay} €/j</span>
-              {total != null && <> · {total} € total pour {durationDays}j</>}
+      <div className="rounded-2xl border-2 border-teal-300 overflow-hidden">
+        <div className="h-1 w-full bg-teal-500" />
+        <div className="bg-teal-50 px-5 py-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <Euro className="w-5 h-5 text-teal-600 shrink-0" />
+            <p className="text-sm font-black text-teal-800 uppercase tracking-wide">Action requise — valider ou refuser</p>
+          </div>
+
+          <div className="flex items-baseline gap-3">
+            {resp.pricePerDay != null ? (
+              <>
+                <span className="text-3xl font-black text-teal-700 tabular-nums">{resp.pricePerDay} €/j</span>
+                {total != null && (
+                  <span className="text-sm text-slate-500">
+                    = <strong className="text-slate-700">{total} €</strong> pour {durationDays}j
+                  </span>
+                )}
               </>
+            ) : (
+              <span className="text-sm text-slate-500 italic">Tarif non précisé</span>
             )}
-          </p>
+          </div>
+
+          <p className="text-sm font-semibold text-teal-900">{resp.agencyName}</p>
+
+          {(resp.vehicleModel || resp.message) && (
+            <div className="space-y-0.5">
+              {resp.vehicleModel && (
+                <p className="text-sm text-slate-700 flex items-center gap-2">
+                  <Car className="w-4 h-4 text-slate-400" />
+                  {resp.vehicleModel}
+                </p>
+              )}
+              {resp.message && (
+                <p className="text-sm text-slate-600 italic">"{resp.message}"</p>
+              )}
+            </div>
+          )}
+
+          {onValidate && onRefuse && (
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={onValidate}
+                disabled={offerAction !== null}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-bold transition-colors disabled:opacity-60"
+              >
+                {offerAction === 'validating'
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <CheckCircle2 className="w-5 h-5" />
+                }
+                {offerAction === 'validating' ? 'Validation…' : 'Valider ce tarif'}
+              </button>
+              <button
+                onClick={onRefuse}
+                disabled={offerAction !== null}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-red-300 text-red-600 bg-white hover:bg-red-50 text-sm font-semibold transition-colors disabled:opacity-60"
+              >
+                {offerAction === 'refusing'
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <XCircle className="w-4 h-4" />
+                }
+                {offerAction === 'refusing' ? 'Refus…' : 'Refuser'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -526,6 +580,54 @@ function ActionBanner({
   }
 
   return null
+}
+
+// ── Loueurs contactés ─────────────────────────────────────────────────────────
+
+function ContactedAgenciesSection({
+  agencyCount, loueurResponse, status,
+}: {
+  agencyCount:    number
+  loueurResponse: AssistanceRequest['loueurResponse'] | undefined | null
+  status:         string
+}) {
+  if (agencyCount === 0) return null
+
+  const hasResponse  = !!loueurResponse
+  const othersCount  = agencyCount - (hasResponse ? 1 : 0)
+  const isConfirmed  = status === 'confirmee' || status === 'honoree' || status === 'cloturee'
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 px-5 py-4">
+      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Loueurs contactés</p>
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-slate-500">Total sollicités</span>
+          <span className="text-sm font-bold text-slate-900">{agencyCount} loueur{agencyCount > 1 ? 's' : ''}</span>
+        </div>
+        {hasResponse && loueurResponse && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-medium text-slate-800 truncate">{loueurResponse.agencyName}</span>
+            <span className={`shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+              isConfirmed
+                ? 'bg-green-50 text-green-700 border border-green-200'
+                : 'bg-teal-50 text-teal-700 border border-teal-200'
+            }`}>
+              {isConfirmed ? 'Confirmé' : 'A répondu'}
+            </span>
+          </div>
+        )}
+        {othersCount > 0 && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-slate-400 italic">{othersCount} autre{othersCount > 1 ? 's' : ''}</span>
+            <span className="shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+              Sans réponse ou fermé{othersCount > 1 ? 's' : ''}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 // ── Validation contre-proposition ────────────────────────────────────────────
