@@ -476,12 +476,20 @@ export default function AdminUtilisateursPage() {
           <h1 className="text-2xl font-black text-slate-900">Utilisateurs</h1>
           <p className="text-sm text-slate-500 mt-0.5">Gérez les comptes et les accès.</p>
         </div>
-        <Link
-          href="/admin/utilisateurs/nouveau"
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> Inviter un partenaire
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin/loueurs/nouveau"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm"
+          >
+            <Truck className="w-4 h-4 text-brand-500" /> Créer un loueur
+          </Link>
+          <Link
+            href="/admin/utilisateurs/nouveau"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" /> Inviter un partenaire
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
