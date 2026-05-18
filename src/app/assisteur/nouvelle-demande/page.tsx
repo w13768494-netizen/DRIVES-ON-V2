@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { getSession }             from '@/services/currentSessionService'
 import { AssistanceRequestForm }  from '@/components/assisteur/AssistanceRequestForm'
 import { MatchedCompanyList }     from '@/components/assisteur/MatchedCompanyList'
 import { RequestRecap }           from '@/components/assisteur/RequestRecap'
@@ -32,6 +33,7 @@ interface PendingConfirm {
 }
 
 export default function NouvelleDemandePage() {
+  const accountType = getSession()?.accountType ?? 'assistance'
   const [step, setStep]     = useState<Step>('form')
   const [loading, setLoading] = useState(false)
 
@@ -149,7 +151,7 @@ export default function NouvelleDemandePage() {
               title="Nouvelle demande"
               subtitle="Renseignez les détails de la situation pour trouver les meilleurs loueurs disponibles."
             />
-            <AssistanceRequestForm onSubmit={handleFormSubmit} loading={loading} />
+            <AssistanceRequestForm accountType={accountType} onSubmit={handleFormSubmit} loading={loading} />
           </>
         )}
 

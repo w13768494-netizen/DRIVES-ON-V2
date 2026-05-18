@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { geocodeAddress } from '@/services/geocodingService'
 import type { RequestFormInput } from '@/types/request'
+import type { AccountType } from '@/types/session'
 import {
   VEHICLE_CATEGORY_LABELS, TOURISME_CATEGORIES, UTILITAIRE_CATEGORIES,
   type VehicleCategoryType, type VehicleGroupType,
@@ -24,38 +25,98 @@ const VEHICLE_CATEGORY_ENUM = [
   'petit_utilitaire', 'fourgon_3m3', 'fourgon_6m3', 'fourgon_12m3', 'camion_20m3', 'benne', 'frigorifique',
 ] as const satisfies readonly VehicleCategoryType[]
 
-const schema = z.object({
-  requestType:     z.enum(['immediate', 'planifiee'] as const, { required_error: 'Choisissez le type de demande' }),
-  dossierNumber:   z.string().min(1, 'Le numéro de dossier est obligatoire'),
-  referenceNumber: z.string().optional(),
+// ── Static form value type ────────────────────────────────────────────────────
 
-  creditType: z.enum(['full', 'partial', 'client'] as const, { required_error: 'Sélectionnez le type de prise en charge' }),
-
-  lastName:      z.string().min(1, 'Le nom est obligatoire'),
-  firstName:     z.string().min(1, 'Le prénom est obligatoire'),
-  phone:         z.string().min(8, 'Téléphone invalide'),
-  email:         z.string().email('Email invalide').optional().or(z.literal('')),
-  licenseNumber: z.string().optional(),
-
-  address:          z.string().min(5, 'Saisissez une adresse complète'),
-  vehicleGroup:     z.enum(['tourisme', 'utilitaire'] as const, { required_error: 'Choisissez le type de véhicule' }),
-  vehicleCategory:  z.enum([...VEHICLE_CATEGORY_ENUM] as [VehicleCategoryType, ...VehicleCategoryType[]], { required_error: 'Choisissez une catégorie' }),
-  dateNeeded:       z.string().min(1, 'Indiquez la date et l\'heure souhaitées'),
-  durationDays:     z.coerce.number().int().min(1, 'Minimum 1 jour').max(90, 'Maximum 90 jours'),
-  maxExtensionDays: z.coerce.number().int().min(1).max(90).optional().or(z.literal('')),
-  notes:            z.string().optional(),
-})
-
-type FormValues = z.infer<typeof schema>
-
-interface Props {
-  onSubmit: (input: RequestFormInput) => void
-  loading:  boolean
+type FormValues = {
+  requestType:       'immediate' | 'planifiee'
+  dossierNumber:     string
+  referenceNumber?:  string
+  creditType:        'full' | 'partial' | 'client'
+  lastName:          string
+  firstName:         string
+  phone:             string
+  email?:            string
+  licenseNumber?:    string
+  address:           string
+  vehicleGroup:      'tourisme' | 'utilitaire'
+  vehicleCategory:   VehicleCategoryType
+  dateNeeded:        string
+  durationDays:      number
+  maxExtensionDays?: number | ''
+  notes?:            string
 }
 
-export function AssistanceRequestForm({ onSubmit, loading }: Props) {
-  const [geocodeError, setGeocodeError] = useState<string | null>(null)
-  const [geocoding, setGeocoding]       = useState(false)
+// ── Config par type de compte ─────────────────────────────────────────────────
+
+const ACCOUNT_CONFIG = {
+  assistance: {
+    dossierLabel:       'N° de sinistre',
+    dossierPlaceholder: 'SIN-2024-00123',
+    dossierRequired:    true,
+    pecTitle:           'Prise en charge',
+    clientSectionTitle: 'Informations sinistré',
+    clientLabel:        'sinistré',
+  },
+  insurance_agent: {
+    dossierLabel:       'N° de dossier / contrat',
+    dossierPlaceholder: 'DOS-2024-00123',
+    dossierRequired:    true,
+    pecTitle:           'Couverture contrat',
+    clientSectionTitle: 'Informations du client assuré',
+    clientLabel:        'client',
+  },
+  garage: {
+    dossierLabel:       'Ordre de réparation',
+    dossierPlaceholder: 'OR-2024-00123',
+    dossierRequired:    false,
+    pecTitle:           'Prise en charge assurance',
+    clientSectionTitle: 'Informations du client',
+    clientLabel:        'client',
+  },
+} satisfies Record<AccountType, {
+  dossierLabel: string
+  dossierPlaceholder: string
+  dossierRequired: boolean
+  pecTitle: string
+  clientSectionTitle: string
+  clientLabel: string
+}>
+
+// ── Composant ─────────────────────────────────────────────────────────────────
+
+interface Props {
+  accountType?: AccountType
+  onSubmit:     (input: RequestFormInput) => void
+  loading:      boolean
+}
+
+export function AssistanceRequestForm({ onSubmit, loading, accountType = 'assistance' }: Props) {
+  const [geocodeError, setGeocodeError]           = useState<string | null>(null)
+  const [geocoding, setGeocoding]                 = useState(false)
+  const [hasInsuranceCoverage, setHasInsuranceCoverage] = useState(false)
+
+  const cfg = ACCOUNT_CONFIG[accountType]
+
+  const schema = useMemo(() => z.object({
+    requestType:     z.enum(['immediate', 'planifiee'] as const, { required_error: 'Choisissez le type de demande' }),
+    dossierNumber:   cfg.dossierRequired
+      ? z.string().min(1, 'Le numéro de dossier est obligatoire')
+      : z.string(),
+    referenceNumber: z.string().optional(),
+    creditType:      z.enum(['full', 'partial', 'client'] as const, { required_error: 'Sélectionnez le type de prise en charge' }),
+    lastName:        z.string().min(1, 'Le nom est obligatoire'),
+    firstName:       z.string().min(1, 'Le prénom est obligatoire'),
+    phone:           z.string().min(8, 'Téléphone invalide'),
+    email:           z.string().email('Email invalide').optional().or(z.literal('')),
+    licenseNumber:   z.string().optional(),
+    address:         z.string().min(5, 'Saisissez une adresse complète'),
+    vehicleGroup:    z.enum(['tourisme', 'utilitaire'] as const, { required_error: 'Choisissez le type de véhicule' }),
+    vehicleCategory: z.enum([...VEHICLE_CATEGORY_ENUM] as [VehicleCategoryType, ...VehicleCategoryType[]], { required_error: 'Choisissez une catégorie' }),
+    dateNeeded:      z.string().min(1, "Indiquez la date et l'heure souhaitées"),
+    durationDays:    z.coerce.number().int().min(1, 'Minimum 1 jour').max(90, 'Maximum 90 jours'),
+    maxExtensionDays: z.coerce.number().int().min(1).max(90).optional().or(z.literal('')),
+    notes:           z.string().optional(),
+  }), [cfg.dossierRequired])
 
   const {
     register,
@@ -65,14 +126,14 @@ export function AssistanceRequestForm({ onSubmit, loading }: Props) {
     resetField,
     formState: { errors },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver:      zodResolver(schema),
     defaultValues: { durationDays: 3, creditType: 'full', requestType: 'immediate' },
   })
 
-  const creditType     = useWatch({ control, name: 'creditType' })
-  const vehicleGroup   = useWatch({ control, name: 'vehicleGroup' })
-  const requestType    = useWatch({ control, name: 'requestType' })
-  const dateNeededVal  = useWatch({ control, name: 'dateNeeded' })
+  const creditType      = useWatch({ control, name: 'creditType' })
+  const vehicleGroup    = useWatch({ control, name: 'vehicleGroup' })
+  const requestType     = useWatch({ control, name: 'requestType' })
+  const dateNeededVal   = useWatch({ control, name: 'dateNeeded' })
   const durationDaysVal = useWatch({ control, name: 'durationDays' })
 
   const endDatePreview = useMemo(() => {
@@ -93,6 +154,11 @@ export function AssistanceRequestForm({ onSubmit, loading }: Props) {
     resetField('vehicleCategory')
   }
 
+  function handleToggleCoverage(checked: boolean) {
+    setHasInsuranceCoverage(checked)
+    setValue('creditType', checked ? 'full' : 'client')
+  }
+
   async function handleFormSubmit(values: FormValues) {
     setGeocodeError(null)
     setGeocoding(true)
@@ -108,12 +174,16 @@ export function AssistanceRequestForm({ onSubmit, loading }: Props) {
       return
     }
 
+    // Garage sans prise en charge → on force 'client' (coverage_type = 'none')
+    const effectiveCreditType =
+      accountType === 'garage' && !hasInsuranceCoverage ? 'client' : values.creditType
+
     onSubmit({
       requestType:     values.requestType,
       dossierNumber:   values.dossierNumber,
       referenceNumber: values.referenceNumber || undefined,
       coverage: {
-        creditType: values.creditType,
+        creditType: effectiveCreditType,
       },
       sinistre: {
         lastName:      values.lastName,
@@ -178,8 +248,14 @@ export function AssistanceRequestForm({ onSubmit, loading }: Props) {
       <Section icon={<Hash className="w-4 h-4 text-brand-500" />} title="Références dossier">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className={labelClass}>N° de dossier <Required /></label>
-            <input {...register('dossierNumber')} placeholder="DOS-2024-00123" className={inputClass(!!errors.dossierNumber)} />
+            <label className={labelClass}>
+              {cfg.dossierLabel} {cfg.dossierRequired && <Required />}
+            </label>
+            <input
+              {...register('dossierNumber')}
+              placeholder={cfg.dossierPlaceholder}
+              className={inputClass(!!errors.dossierNumber)}
+            />
             {errors.dossierNumber && <FieldError message={errors.dossierNumber.message!} />}
           </div>
           <div>
@@ -190,124 +266,212 @@ export function AssistanceRequestForm({ onSubmit, loading }: Props) {
       </Section>
 
       {/* ── Prise en charge ── */}
-      <Section icon={<ShieldCheck className="w-4 h-4 text-brand-500" />} title="Prise en charge">
-        <p className="text-xs text-slate-400 -mt-1 mb-3">
-          Information transmise au loueur pour la facturation.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {/* Totale */}
-          <label className={[
-            'relative flex flex-col gap-4 p-5 rounded-2xl border-2 cursor-pointer transition-all duration-200 overflow-hidden',
-            creditType === 'full'
-              ? 'border-green-500 bg-gradient-to-br from-green-50 to-emerald-50 shadow-sm'
-              : 'border-slate-200 bg-white hover:border-green-300 hover:shadow-sm',
-          ].join(' ')}>
-            <input type="radio" value="full" {...register('creditType')} className="sr-only" />
-            {/* Checkmark sélection */}
-            {creditType === 'full' && (
-              <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
-                <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-              </span>
-            )}
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${creditType === 'full' ? 'bg-green-500' : 'bg-green-100'}`}>
-                <ShieldCheck className={`w-6 h-6 ${creditType === 'full' ? 'text-white' : 'text-green-600'}`} />
-              </div>
-              <div>
-                <p className="text-sm font-black text-slate-900">Totale</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">100 % pris en charge</p>
-              </div>
+      {accountType === 'garage' ? (
+        <Section icon={<ShieldCheck className="w-4 h-4 text-brand-500" />} title={cfg.pecTitle}>
+          <button
+            type="button"
+            onClick={() => handleToggleCoverage(!hasInsuranceCoverage)}
+            className={[
+              'w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all',
+              hasInsuranceCoverage
+                ? 'border-brand-500 bg-brand-50'
+                : 'border-slate-200 bg-white hover:border-slate-300',
+            ].join(' ')}
+          >
+            <div className={[
+              'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
+              hasInsuranceCoverage ? 'bg-brand-500' : 'bg-slate-200',
+            ].join(' ')}>
+              <span className={[
+                'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                hasInsuranceCoverage ? 'translate-x-6' : 'translate-x-1',
+              ].join(' ')} />
             </div>
-            <div className="flex flex-col gap-1.5">
-              {['Location', 'Franchise', 'Carburant'].map(item => (
-                <div key={item} className="flex items-center gap-2">
-                  <span className="w-4 h-4 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                    <CheckCircle2 className="w-2.5 h-2.5 text-green-600" />
-                  </span>
-                  <span className="text-xs text-green-800 font-medium">{item}</span>
-                </div>
-              ))}
+            <div>
+              <p className="text-sm font-semibold text-slate-800">
+                Ce dossier bénéficie d'une prise en charge assurance
+              </p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Activez si l'assurance couvre tout ou partie de la location
+              </p>
             </div>
-          </label>
+          </button>
 
-          {/* Partielle */}
-          <label className={[
-            'relative flex flex-col gap-4 p-5 rounded-2xl border-2 cursor-pointer transition-all duration-200 overflow-hidden',
-            creditType === 'partial'
-              ? 'border-amber-400 bg-gradient-to-br from-amber-50 to-orange-50 shadow-sm'
-              : 'border-slate-200 bg-white hover:border-amber-300 hover:shadow-sm',
-          ].join(' ')}>
-            <input type="radio" value="partial" {...register('creditType')} className="sr-only" />
-            {creditType === 'partial' && (
-              <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center">
-                <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-              </span>
-            )}
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${creditType === 'partial' ? 'bg-amber-400' : 'bg-amber-100'}`}>
-                <ShieldAlert className={`w-6 h-6 ${creditType === 'partial' ? 'text-white' : 'text-amber-600'}`} />
-              </div>
-              <div>
-                <p className="text-sm font-black text-slate-900">Partielle</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Location uniquement</p>
-              </div>
+          {hasInsuranceCoverage && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+              {/* Totale */}
+              <label className={[
+                'relative flex flex-col gap-4 p-5 rounded-2xl border-2 cursor-pointer transition-all duration-200 overflow-hidden',
+                creditType === 'full'
+                  ? 'border-green-500 bg-gradient-to-br from-green-50 to-emerald-50 shadow-sm'
+                  : 'border-slate-200 bg-white hover:border-green-300 hover:shadow-sm',
+              ].join(' ')}>
+                <input type="radio" value="full" {...register('creditType')} className="sr-only" />
+                {creditType === 'full' && (
+                  <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                  </span>
+                )}
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${creditType === 'full' ? 'bg-green-500' : 'bg-green-100'}`}>
+                    <ShieldCheck className={`w-6 h-6 ${creditType === 'full' ? 'text-white' : 'text-green-600'}`} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-slate-900">Totale</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">100 % pris en charge</p>
+                  </div>
+                </div>
+              </label>
+
+              {/* Partielle */}
+              <label className={[
+                'relative flex flex-col gap-4 p-5 rounded-2xl border-2 cursor-pointer transition-all duration-200 overflow-hidden',
+                creditType === 'partial'
+                  ? 'border-amber-400 bg-gradient-to-br from-amber-50 to-orange-50 shadow-sm'
+                  : 'border-slate-200 bg-white hover:border-amber-300 hover:shadow-sm',
+              ].join(' ')}>
+                <input type="radio" value="partial" {...register('creditType')} className="sr-only" />
+                {creditType === 'partial' && (
+                  <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                  </span>
+                )}
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${creditType === 'partial' ? 'bg-amber-400' : 'bg-amber-100'}`}>
+                    <ShieldAlert className={`w-6 h-6 ${creditType === 'partial' ? 'text-white' : 'text-amber-600'}`} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-slate-900">Partielle</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">Location uniquement</p>
+                  </div>
+                </div>
+              </label>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2">
-                <span className="w-4 h-4 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="w-2.5 h-2.5 text-amber-600" />
+          )}
+        </Section>
+      ) : (
+        <Section icon={<ShieldCheck className="w-4 h-4 text-brand-500" />} title={cfg.pecTitle}>
+          <p className="text-xs text-slate-400 -mt-1 mb-3">
+            Information transmise au loueur pour la facturation.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Totale */}
+            <label className={[
+              'relative flex flex-col gap-4 p-5 rounded-2xl border-2 cursor-pointer transition-all duration-200 overflow-hidden',
+              creditType === 'full'
+                ? 'border-green-500 bg-gradient-to-br from-green-50 to-emerald-50 shadow-sm'
+                : 'border-slate-200 bg-white hover:border-green-300 hover:shadow-sm',
+            ].join(' ')}>
+              <input type="radio" value="full" {...register('creditType')} className="sr-only" />
+              {creditType === 'full' && (
+                <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-white" />
                 </span>
-                <span className="text-xs text-amber-800 font-medium">Location</span>
-              </div>
-              {['Franchise', 'Carburant'].map(item => (
-                <div key={item} className="flex items-center gap-2">
-                  <span className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                    <XCircle className="w-2.5 h-2.5 text-slate-400" />
-                  </span>
-                  <span className="text-xs text-slate-400">{item} <span className="text-slate-300">(sinistré)</span></span>
+              )}
+              <div className="flex flex-col items-center gap-2 text-center">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${creditType === 'full' ? 'bg-green-500' : 'bg-green-100'}`}>
+                  <ShieldCheck className={`w-6 h-6 ${creditType === 'full' ? 'text-white' : 'text-green-600'}`} />
                 </div>
-              ))}
-            </div>
-          </label>
-
-          {/* Client */}
-          <label className={[
-            'relative flex flex-col gap-4 p-5 rounded-2xl border-2 cursor-pointer transition-all duration-200 overflow-hidden',
-            creditType === 'client'
-              ? 'border-slate-500 bg-gradient-to-br from-slate-50 to-slate-100 shadow-sm'
-              : 'border-slate-200 bg-white hover:border-slate-400 hover:shadow-sm',
-          ].join(' ')}>
-            <input type="radio" value="client" {...register('creditType')} className="sr-only" />
-            {creditType === 'client' && (
-              <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-slate-600 flex items-center justify-center">
-                <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-              </span>
-            )}
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${creditType === 'client' ? 'bg-slate-600' : 'bg-slate-100'}`}>
-                <Wallet className={`w-6 h-6 ${creditType === 'client' ? 'text-white' : 'text-slate-500'}`} />
-              </div>
-              <div>
-                <p className="text-sm font-black text-slate-900">Client</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">À la charge du sinistré</p>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              {['Location', 'Franchise', 'Carburant'].map(item => (
-                <div key={item} className="flex items-center gap-2">
-                  <span className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                    <XCircle className="w-2.5 h-2.5 text-slate-400" />
-                  </span>
-                  <span className="text-xs text-slate-400">{item} <span className="text-slate-300">(sinistré)</span></span>
+                <div>
+                  <p className="text-sm font-black text-slate-900">Totale</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">100 % pris en charge</p>
                 </div>
-              ))}
-            </div>
-          </label>
-        </div>
-      </Section>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {['Location', 'Franchise', 'Carburant'].map(item => (
+                  <div key={item} className="flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                      <CheckCircle2 className="w-2.5 h-2.5 text-green-600" />
+                    </span>
+                    <span className="text-xs text-green-800 font-medium">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </label>
 
-      {/* ── Sinistré ── */}
-      <Section icon={<User className="w-4 h-4 text-brand-500" />} title="Informations sinistré">
+            {/* Partielle */}
+            <label className={[
+              'relative flex flex-col gap-4 p-5 rounded-2xl border-2 cursor-pointer transition-all duration-200 overflow-hidden',
+              creditType === 'partial'
+                ? 'border-amber-400 bg-gradient-to-br from-amber-50 to-orange-50 shadow-sm'
+                : 'border-slate-200 bg-white hover:border-amber-300 hover:shadow-sm',
+            ].join(' ')}>
+              <input type="radio" value="partial" {...register('creditType')} className="sr-only" />
+              {creditType === 'partial' && (
+                <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                </span>
+              )}
+              <div className="flex flex-col items-center gap-2 text-center">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${creditType === 'partial' ? 'bg-amber-400' : 'bg-amber-100'}`}>
+                  <ShieldAlert className={`w-6 h-6 ${creditType === 'partial' ? 'text-white' : 'text-amber-600'}`} />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-slate-900">Partielle</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Location uniquement</p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-4 h-4 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-2.5 h-2.5 text-amber-600" />
+                  </span>
+                  <span className="text-xs text-amber-800 font-medium">Location</span>
+                </div>
+                {['Franchise', 'Carburant'].map(item => (
+                  <div key={item} className="flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                      <XCircle className="w-2.5 h-2.5 text-slate-400" />
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {item} <span className="text-slate-300">({cfg.clientLabel})</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </label>
+
+            {/* Client / Aucune */}
+            <label className={[
+              'relative flex flex-col gap-4 p-5 rounded-2xl border-2 cursor-pointer transition-all duration-200 overflow-hidden',
+              creditType === 'client'
+                ? 'border-slate-500 bg-gradient-to-br from-slate-50 to-slate-100 shadow-sm'
+                : 'border-slate-200 bg-white hover:border-slate-400 hover:shadow-sm',
+            ].join(' ')}>
+              <input type="radio" value="client" {...register('creditType')} className="sr-only" />
+              {creditType === 'client' && (
+                <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-slate-600 flex items-center justify-center">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                </span>
+              )}
+              <div className="flex flex-col items-center gap-2 text-center">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${creditType === 'client' ? 'bg-slate-600' : 'bg-slate-100'}`}>
+                  <Wallet className={`w-6 h-6 ${creditType === 'client' ? 'text-white' : 'text-slate-500'}`} />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-slate-900">Aucune</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">À la charge du {cfg.clientLabel}</p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {['Location', 'Franchise', 'Carburant'].map(item => (
+                  <div key={item} className="flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                      <XCircle className="w-2.5 h-2.5 text-slate-400" />
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {item} <span className="text-slate-300">({cfg.clientLabel})</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </label>
+          </div>
+        </Section>
+      )}
+
+      {/* ── Informations client / sinistré ── */}
+      <Section icon={<User className="w-4 h-4 text-brand-500" />} title={cfg.clientSectionTitle}>
         <p className="text-xs text-slate-400 -mt-1 mb-3">Personne qui sera en possession du véhicule.</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -435,7 +599,6 @@ export function AssistanceRequestForm({ onSubmit, loading }: Props) {
           </div>
         </div>
 
-        {/* Aperçu dates calculées */}
         {endDatePreview && (
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div className="flex items-start gap-2 px-3 py-2.5 bg-blue-50 border border-blue-200 rounded-xl">
