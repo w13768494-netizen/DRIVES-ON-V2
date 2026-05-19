@@ -6,34 +6,38 @@ import {
   TrendingUp, AlertTriangle, ArrowRightLeft, Activity, UserCheck,
   RefreshCw,
 } from 'lucide-react'
-import { getAllRequests }       from '@/services/requestService'
-import { getCandidatures }     from '@/services/candidatureService'
-import { getDisplayStatus }    from '@/lib/displayStatus'
-import type { AssistanceRequest } from '@/types/request'
+import { getAdminReservations }  from '@/services/adminReservationService'
+import { getAgencyConfigAlerts } from '@/services/adminAlertService'
+import { getCandidatures }       from '@/services/candidatureService'
+import { getDisplayStatus }      from '@/lib/displayStatus'
+import type { AdminReservation }  from '@/types/adminReservation'
 import type { Candidature }       from '@/types/candidature'
 import type { AdminAgency }       from '@/app/api/admin/agencies/route'
 import type { AdminUser }         from '@/types/adminUser'
 
 export default function AdminPlatformPage() {
-  const [requests,    setRequests]    = useState<AssistanceRequest[]>([])
-  const [adminUsers,  setAdminUsers]  = useState<AdminUser[]>([])
-  const [agencies,    setAgencies]    = useState<AdminAgency[]>([])
-  const [candidatures,setCandidatures]= useState<Candidature[]>([])
-  const [loading,     setLoading]     = useState(true)
-  const [refreshedAt, setRefreshedAt] = useState(new Date())
+  const [requests,      setRequests]      = useState<AdminReservation[]>([])
+  const [adminUsers,    setAdminUsers]    = useState<AdminUser[]>([])
+  const [agencies,      setAgencies]      = useState<AdminAgency[]>([])
+  const [candidatures,  setCandidatures]  = useState<Candidature[]>([])
+  const [agencyAlerts,  setAgencyAlerts]  = useState(0)
+  const [loading,       setLoading]       = useState(true)
+  const [refreshedAt,   setRefreshedAt]   = useState(new Date())
 
   async function load() {
     setLoading(true)
-    const [reqs, cands, agencyRes, usersRes] = await Promise.all([
-      getAllRequests(),
+    const [reqs, cands, agencyRes, usersRes, sysAlerts] = await Promise.all([
+      getAdminReservations(),
       getCandidatures(),
       fetch('/api/admin/agencies').then(r => r.json()).catch(() => []) as Promise<AdminAgency[]>,
       fetch('/api/admin/users').then(r => r.json()).catch(() => [])    as Promise<AdminUser[]>,
+      getAgencyConfigAlerts(),
     ])
     setRequests(reqs)
     setAdminUsers(Array.isArray(usersRes) ? usersRes : [])
     setAgencies(agencyRes)
     setCandidatures(cands)
+    setAgencyAlerts(sysAlerts.length)
     setRefreshedAt(new Date())
     setLoading(false)
   }
@@ -46,6 +50,7 @@ export default function AdminPlatformPage() {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const week  = new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000)
 
+  const alertesRouge    = requests.filter(r => r.alerts.some(a => a.severity === 'rouge')).length
   const totalReqs       = requests.length
   const activeReqs      = requests.filter(r => ['envoyee','recue','confirmee'].includes(r.status)).length
   const enCours         = requests.filter(r => {
@@ -139,7 +144,7 @@ export default function AdminPlatformPage() {
       </div>
 
       {/* ── Ligne 2 : alertes + taux ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <KpiCard
           icon={<TrendingUp className="w-5 h-5" />}
           label="Taux de confirmation"
@@ -168,6 +173,15 @@ export default function AdminPlatformPage() {
         />
         <KpiCard
           icon={<AlertTriangle className="w-5 h-5" />}
+          label="Alertes critiques"
+          value={alertesRouge}
+          sub="dossiers avec alerte rouge"
+          color={alertesRouge > 0 ? 'orange' : 'slate'}
+          loading={loading}
+          alert={alertesRouge > 0}
+        />
+        <KpiCard
+          icon={<Activity className="w-5 h-5" />}
           label="Cette semaine"
           value={weekReqs}
           sub="demandes créées"
@@ -175,6 +189,17 @@ export default function AdminPlatformPage() {
           loading={loading}
         />
       </div>
+
+      {/* ── Notice agences sans coords ── */}
+      {agencyAlerts > 0 && !loading && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-sm">
+          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+          <p className="text-amber-800">
+            <span className="font-semibold">{agencyAlerts} agence{agencyAlerts > 1 ? 's' : ''} active{agencyAlerts > 1 ? 's' : ''}</span>
+            {' '}sans coordonnées GPS — le matching géographique est dégradé pour ces agences.
+          </p>
+        </div>
+      )}
 
       {/* ── Ligne 3 : répartition + activité récente ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

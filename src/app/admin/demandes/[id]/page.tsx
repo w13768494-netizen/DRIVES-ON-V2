@@ -12,8 +12,10 @@ import {
 } from 'lucide-react'
 import { getAdminDossier, saveAdminNote, saveAdminFlags } from '@/services/adminDossierService'
 import { getDocumentsByRequest }                          from '@/services/documentService'
+import { computeAlerts }                                  from '@/services/adminAlertService'
 import type { AdminDossierData }                          from '@/services/adminDossierService'
 import type { RequestDocument, RequestDocumentType }      from '@/types/requestDocument'
+import type { AlertSeverity }                             from '@/types/adminAlert'
 import {
   REQUEST_DOCUMENT_TYPE_LABELS,
   REQUEST_DOCUMENT_TYPE_COLORS,
@@ -508,6 +510,12 @@ function TimelineCard({ dossier }: { dossier: AdminDossierData }) {
 
 // ── Bloc G — État opérationnel ────────────────────────────────────────────────
 
+const ALERT_STYLES: Record<AlertSeverity, string> = {
+  rouge:  'bg-red-50 border-red-200 text-red-700',
+  orange: 'bg-orange-50 border-orange-200 text-orange-700',
+  jaune:  'bg-amber-50 border-amber-200 text-amber-700',
+}
+
 function OperationalStatusCard({
   dossier, documents,
 }: {
@@ -515,9 +523,26 @@ function OperationalStatusCard({
   documents: RequestDocument[]
 }) {
   const { request, uxStatus, urgencyLevel, paymentStatus, minutesSinceLastActivity, lastActivityAt } = dossier
-  const presentTypes = documents.map(d => d.type)
-  const missing = dossier.missingDocTypes(presentTypes)
-  const urgencyCfg = URGENCY_CONFIG[urgencyLevel]
+  const presentTypes     = documents.map(d => d.type)
+  const missingDocuments = dossier.missingDocTypes(presentTypes)
+  const urgencyCfg       = URGENCY_CONFIG[urgencyLevel]
+
+  const alerts = computeAlerts({
+    status:                   request.status,
+    requestType:              request.requestType,
+    coverage:                 request.coverage,
+    adminFlags:               request.adminFlags,
+    assignedAgencyId:         request.assignedAgencyId,
+    assignedAgencyIds:        request.assignedAgencyIds,
+    confirmedAgencyId:        request.confirmedAgencyId,
+    loueurResponse:           request.loueurResponse,
+    returnedAt:               request.returnedAt,
+    missingDocuments,
+    uxStatus,
+    minutesSinceLastActivity,
+  })
+
+  const rougeCount = alerts.filter(a => a.severity === 'rouge').length
 
   return (
     <SectionCard title="État opérationnel" icon={Activity}>
@@ -564,28 +589,35 @@ function OperationalStatusCard({
         </div>
 
         {/* Alertes actives */}
-        {missing.length > 0 && (
-          <div className="bg-red-50 border border-red-100 rounded-xl p-3">
-            <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" /> Alertes
+        {alerts.length > 0 && (
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+              <AlertTriangle className="w-3 h-3 text-red-400" />
+              Alertes
+              {rougeCount > 0 && (
+                <span className="text-red-500 normal-case font-semibold">
+                  · {rougeCount} critique{rougeCount > 1 ? 's' : ''}
+                </span>
+              )}
             </p>
-            <ul className="flex flex-col gap-1">
-              {missing.map(t => (
-                <li key={t} className="text-xs text-red-600 flex items-center gap-1.5">
-                  <XCircle className="w-3.5 h-3.5 shrink-0" />
-                  {REQUEST_DOCUMENT_TYPE_LABELS[t]} manquant
-                </li>
+            <div className="flex flex-col gap-1.5">
+              {alerts.map(al => (
+                <div key={al.code} className={`flex items-start gap-2 px-3 py-2 rounded-xl border text-xs ${ALERT_STYLES[al.severity]}`}>
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 opacity-70" />
+                  <div>
+                    <p className="font-semibold leading-tight">{al.label}</p>
+                    {al.detail && <p className="opacity-60 mt-0.5">{al.detail}</p>}
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         )}
-        {urgencyLevel === 'critique' && (
-          <div className="bg-red-50 border border-red-100 rounded-xl p-3">
-            <p className="text-xs font-semibold text-red-600 flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5" />
-              Demande immédiate sans réponse depuis {formatTimeAgo(minutesSinceLastActivity)}
-            </p>
-          </div>
+        {alerts.length === 0 && (
+          <p className="text-xs text-slate-400 italic flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+            Aucune alerte active
+          </p>
         )}
       </div>
     </SectionCard>

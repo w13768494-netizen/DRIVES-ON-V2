@@ -1,4 +1,5 @@
 import { getAllRequests }   from './requestService'
+import { computeAlerts }   from './adminAlertService'
 import { supabase }        from '@/lib/supabaseClient'
 import type { AssistanceRequest, RequestStatus } from '@/types/request'
 import type { RequestDocumentType } from '@/types/requestDocument'
@@ -113,7 +114,7 @@ function enrichRequest(
   const urgencyLevel              = computeUrgencyLevel(request, uxStatus, minutesSinceLastActivity)
   const paymentStatus             = computePaymentStatus(request.status)
 
-  return {
+  const partial = {
     ...request,
     uxStatus,
     urgencyLevel,
@@ -121,7 +122,11 @@ function enrichRequest(
     missingDocuments,
     lastActivityAt,
     minutesSinceLastActivity,
+    alerts: [] as AdminReservation['alerts'],
   }
+  const alerts = computeAlerts(partial)
+
+  return { ...partial, alerts }
 }
 
 // ── API publique ──────────────────────────────────────────────────────────────
@@ -148,7 +153,11 @@ export function computeKpis(reservations: AdminReservation[]): AdminReservationK
     en_attente: 0, en_cours: 0, docs_manquants: 0,
     attente_paiement: 0, cloturee: 0, archivee: 0,
     total: reservations.length,
+    alertes_critiques: 0,
   }
-  for (const r of reservations) kpis[r.uxStatus]++
+  for (const r of reservations) {
+    kpis[r.uxStatus]++
+    if (r.alerts.some(a => a.severity === 'rouge')) kpis.alertes_critiques++
+  }
   return kpis
 }

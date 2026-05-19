@@ -1,5 +1,6 @@
 import type { AssistanceRequest, RequestStatus } from './request'
 import type { RequestDocumentType } from './requestDocument'
+import type { AdminAlert } from './adminAlert'
 
 export type AdminUxStatus =
   | 'en_attente'
@@ -67,14 +68,16 @@ export interface AdminReservation extends AssistanceRequest {
   missingDocuments:         RequestDocumentType[]
   lastActivityAt:           Date
   minutesSinceLastActivity: number
+  alerts:                   AdminAlert[]
 }
 
 export interface AdminReservationKpis {
-  en_attente:       number
-  en_cours:         number
-  docs_manquants:   number
-  attente_paiement: number
-  cloturee:         number
-  archivee:         number
-  total:            number
+  en_attente:         number
+  en_cours:           number
+  docs_manquants:     number
+  attente_paiement:   number
+  cloturee:           number
+  archivee:           number
+  total:              number
+  alertes_critiques:  number  // dossiers avec ≥1 alerte rouge
 }

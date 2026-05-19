@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   X, ExternalLink, Phone, Mail, AlertTriangle, CheckCircle2,
-  XCircle, Clock, ChevronRight, Zap,
+  XCircle, Clock, ChevronRight, Zap, ShieldAlert,
 } from 'lucide-react'
 import { getAdminReservations, computeKpis } from '@/services/adminReservationService'
 import { REQUEST_DOCUMENT_TYPE_LABELS }      from '@/types/requestDocument'
@@ -14,11 +14,12 @@ import {
   MISSING_DOC_SHORT_LABELS,
 } from '@/types/adminReservation'
 import type { AdminReservation, AdminUxStatus, AdminUrgencyLevel, AdminReservationKpis } from '@/types/adminReservation'
+import type { AdminAlert, AlertSeverity } from '@/types/adminAlert'
 import type { RequestDocumentType } from '@/types/requestDocument'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-type FilterValue = AdminUxStatus | 'all'
+type FilterValue = AdminUxStatus | 'all' | 'alertes_critiques'
 
 function extractCity(address: string): string {
   const parts = address.split(',')
@@ -61,6 +62,37 @@ function PaymentBadge({ status }: { status: AdminReservation['paymentStatus'] })
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${ADMIN_PAYMENT_COLORS[status]}`}>
       {ADMIN_PAYMENT_LABELS[status]}
     </span>
+  )
+}
+
+// Petits points de couleur résumant les alertes d'un dossier
+function AlertDots({ alerts }: { alerts: AdminAlert[] }) {
+  const rouge  = alerts.filter(a => a.severity === 'rouge').length
+  const orange = alerts.filter(a => a.severity === 'orange').length
+  const jaune  = alerts.filter(a => a.severity === 'jaune').length
+  if (rouge === 0 && orange === 0 && jaune === 0) return null
+  return (
+    <div className="flex items-center gap-0.5 justify-center">
+      {rouge  > 0 && <span title={`${rouge} critique${rouge > 1 ? 's' : ''}`}  className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />}
+      {orange > 0 && <span title={`${orange} orange`}  className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />}
+      {jaune  > 0 && <span title={`${jaune} attention`} className="w-1.5 h-1.5 rounded-full bg-amber-300 shrink-0" />}
+    </div>
+  )
+}
+
+// Ligne d'alerte dans le drawer
+function AlertRow({ alert }: { alert: AdminAlert }) {
+  const styles: Record<AlertSeverity, string> = {
+    rouge:  'bg-red-50 border-red-200 text-red-700',
+    orange: 'bg-orange-50 border-orange-200 text-orange-700',
+    jaune:  'bg-amber-50 border-amber-200 text-amber-700',
+  }
+  return (
+    <div className={`flex items-start gap-2 px-2.5 py-1.5 rounded-lg border text-xs ${styles[alert.severity]}`}>
+      <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5 opacity-70" />
+      <span className="font-semibold">{alert.label}</span>
+      {alert.detail && <span className="opacity-60 ml-1">{alert.detail}</span>}
+    </div>
   )
 }
 
@@ -201,6 +233,24 @@ function ReservationDrawer({
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
 
+          {/* Alertes */}
+          {reservation.alerts.length > 0 && (
+            <section>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
+                Alertes
+                {reservation.alerts.filter(a => a.severity === 'rouge').length > 0 && (
+                  <span className="text-red-500 normal-case font-semibold">
+                    · {reservation.alerts.filter(a => a.severity === 'rouge').length} critique{reservation.alerts.filter(a => a.severity === 'rouge').length > 1 ? 's' : ''}
+                  </span>
+                )}
+              </p>
+              <div className="flex flex-col gap-1.5">
+                {reservation.alerts.map(al => <AlertRow key={al.code} alert={al} />)}
+              </div>
+            </section>
+          )}
+
           {/* Sinistré */}
           <section>
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Sinistré</p>
@@ -326,9 +376,12 @@ function TableRow({
         selected ? 'bg-blue-50' : 'hover:bg-slate-50'
       }`}
     >
-      {/* Urgence dot */}
-      <td className="pl-4 pr-2 py-3">
-        <UrgencyDot level={r.urgencyLevel} />
+      {/* Urgence + alertes dots */}
+      <td className="pl-4 pr-2 py-3 w-8">
+        <div className="flex flex-col items-center gap-1">
+          <UrgencyDot level={r.urgencyLevel} />
+          <AlertDots alerts={r.alerts} />
+        </div>
       </td>
 
       {/* Dossier */}
@@ -424,11 +477,14 @@ function MobileCard({
           {r.sinistre.firstName} {r.sinistre.lastName}
         </p>
         <p className="text-xs text-slate-500">{extractCity(r.location.address)}</p>
-        {r.missingDocuments.length > 0 && r.uxStatus !== 'cloturee' && r.uxStatus !== 'archivee' && (
-          <div className="flex items-center gap-1 mt-1.5">
-            <AlertTriangle className="w-3 h-3 text-red-500" />
-            <span className="text-xs text-red-600 font-medium">
-              {r.missingDocuments.length} doc{r.missingDocuments.length > 1 ? 's' : ''} manquant{r.missingDocuments.length > 1 ? 's' : ''}
+        {r.alerts.length > 0 && (
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            <AlertDots alerts={r.alerts} />
+            <span className="text-xs text-slate-500">
+              {r.alerts.length} alerte{r.alerts.length > 1 ? 's' : ''}
+              {r.alerts.some(a => a.severity === 'rouge') && (
+                <span className="text-red-600 font-semibold"> · {r.alerts.filter(a => a.severity === 'rouge').length} critique{r.alerts.filter(a => a.severity === 'rouge').length > 1 ? 's' : ''}</span>
+              )}
             </span>
           </div>
         )}
@@ -445,13 +501,14 @@ function MobileCard({
 // ── Page principale ───────────────────────────────────────────────────────────
 
 const FILTERS: { value: FilterValue; label: string; alert?: boolean }[] = [
-  { value: 'all',              label: 'Tout' },
-  { value: 'en_attente',       label: 'En attente' },
-  { value: 'en_cours',         label: 'En cours' },
-  { value: 'docs_manquants',   label: 'Docs manquants', alert: true },
-  { value: 'attente_paiement', label: 'Paiement' },
-  { value: 'cloturee',         label: 'Clôturées' },
-  { value: 'archivee',         label: 'Archivées' },
+  { value: 'all',                label: 'Tout' },
+  { value: 'en_attente',         label: 'En attente' },
+  { value: 'en_cours',           label: 'En cours' },
+  { value: 'docs_manquants',     label: 'Docs manquants', alert: true },
+  { value: 'attente_paiement',   label: 'Paiement' },
+  { value: 'alertes_critiques',  label: 'Alertes critiques', alert: true },
+  { value: 'cloturee',           label: 'Clôturées' },
+  { value: 'archivee',           label: 'Archivées' },
 ]
 
 const KPI_CONFIG: {
@@ -459,11 +516,11 @@ const KPI_CONFIG: {
   label: string
   alert?: boolean
 }[] = [
-  { key: 'en_attente',       label: 'En attente' },
-  { key: 'en_cours',         label: 'En cours' },
-  { key: 'docs_manquants',   label: 'Docs manquants', alert: true },
-  { key: 'attente_paiement', label: 'Attente paiement' },
-  { key: 'cloturee',         label: 'Clôturées' },
+  { key: 'en_attente',         label: 'En attente' },
+  { key: 'en_cours',           label: 'En cours' },
+  { key: 'docs_manquants',     label: 'Docs manquants', alert: true },
+  { key: 'attente_paiement',   label: 'Attente paiement' },
+  { key: 'alertes_critiques',  label: 'Alertes critiques', alert: true },
 ]
 
 export default function AdminReservationsPage() {
@@ -481,12 +538,11 @@ export default function AdminReservationsPage() {
 
   const kpis = useMemo(() => computeKpis(reservations), [reservations])
 
-  const filtered = useMemo(() =>
-    filter === 'all'
-      ? reservations
-      : reservations.filter(r => r.uxStatus === filter),
-    [reservations, filter]
-  )
+  const filtered = useMemo(() => {
+    if (filter === 'all') return reservations
+    if (filter === 'alertes_critiques') return reservations.filter(r => r.alerts.some(a => a.severity === 'rouge'))
+    return reservations.filter(r => r.uxStatus === filter)
+  }, [reservations, filter])
 
   const selected = selectedId
     ? (reservations.find(r => r.id === selectedId) ?? null)
@@ -499,6 +555,7 @@ export default function AdminReservationsPage() {
 
   const filterCount = useCallback((v: FilterValue): number => {
     if (v === 'all') return reservations.length
+    if (v === 'alertes_critiques') return kpis.alertes_critiques
     return kpis[v as keyof typeof kpis] as number
   }, [kpis, reservations.length])
 
