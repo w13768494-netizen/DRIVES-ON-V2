@@ -61,7 +61,7 @@ export function AgencySelectionList({
                     {company.distanceKm !== undefined && (
                       <span className="flex items-center gap-1">
                         <Navigation className="w-3.5 h-3.5 text-brand-400" />
-                        {company.distanceKm} km
+                        {company.distanceKm} km vol d'oiseau
                       </span>
                     )}
                     <span className="flex items-center gap-1">

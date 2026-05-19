@@ -72,7 +72,7 @@ export function RentalRequestCard({ request }: Props) {
           </span>
           <span className="flex items-center gap-1.5">
             <Navigation className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden="true" />
-            {request.distanceKm} km
+            {request.distanceKm} km (vol d'oiseau)
           </span>
           <span className="flex items-center gap-1.5">
             {coverage.creditType === 'full'

@@ -147,6 +147,7 @@ export function RentalCompanyCard({
               {company.distanceKm?.toFixed(0) ?? '—'}
             </span>
             <span className="text-xs text-slate-400 ml-0.5">km</span>
+            <span className="text-[10px] text-slate-400 block leading-none mt-0.5">vol d'oiseau</span>
           </div>
         </div>
       </div>

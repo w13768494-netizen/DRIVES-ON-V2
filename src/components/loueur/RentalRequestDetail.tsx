@@ -227,7 +227,7 @@ export function RentalRequestDetail({ request }: Props) {
       {/* Lieu */}
       <Section title="Lieu du sinistre">
         <Row icon={<MapPin className="w-4 h-4" />}     label="Adresse"                    value={location.address} />
-        <Row icon={<Navigation className="w-4 h-4" />} label="Distance de votre agence"   value={`${request.distanceKm} km`} />
+        <Row icon={<Navigation className="w-4 h-4" />} label="Distance de votre agence"   value={`${request.distanceKm} km (vol d'oiseau)`} />
       </Section>
 
       {/* Services demandés */}
