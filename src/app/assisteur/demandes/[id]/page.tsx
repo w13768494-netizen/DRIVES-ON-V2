@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { getRequestById, closeRequest, validateTransfer, refuseTransfer, validatePayment, confirmByAssisteur, refuseCounterOffer } from '@/services/requestService'
+import { getRequestById, closeRequest, validateTransfer, refuseTransfer, confirmByAssisteur, refuseCounterOffer } from '@/services/requestService'
 import { getDocumentsByRequest } from '@/services/documentService'
 import { getRentalAgencyById } from '@/services/loueurService'
 import { getDisplayStatus } from '@/lib/displayStatus'
@@ -28,7 +28,7 @@ import { REQUEST_TYPE_LABELS } from '@/types/request'
 import type { AssistanceRequest } from '@/types/request'
 import type { RentalAgency } from '@/types/rentalAgency'
 import type { RequestDocument } from '@/types/requestDocument'
-import { LOUEUR_DOCUMENT_TYPES, REQUEST_DOCUMENT_TYPE_LABELS } from '@/types/requestDocument'
+import { REQUEST_DOCUMENT_TYPE_LABELS } from '@/types/requestDocument'
 
 export default function DemandeDetailPage({
   params,
@@ -42,7 +42,6 @@ export default function DemandeDetailPage({
   const [docs, setDocs]                   = useState<RequestDocument[]>([])
   const [loading, setLoading]             = useState(true)
   const [closing, setClosing]             = useState(false)
-  const [validating, setValidating]       = useState(false)
   const [offerAction, setOfferAction]     = useState<'validating' | 'refusing' | null>(null)
   useEffect(() => {
     getRequestById(id).then(req => {
@@ -82,14 +81,6 @@ export default function DemandeDetailPage({
     setOfferAction(null)
   }
 
-  async function handleValidatePayment() {
-    if (!request) return
-    setValidating(true)
-    const updated = await validatePayment(request.id)
-    if (updated) setRequest(updated)
-    setValidating(false)
-  }
-
   async function handleValidateTransfer() {
     if (!request) return
     const transfer = request.transfers.find(t => t.status === 'en_attente')
@@ -115,16 +106,18 @@ export default function DemandeDetailPage({
   )
 
   const resp              = request.loueurResponse
-  const canClose          = !['cloturee', 'honoree'].includes(request.status)
   const pendingTransfer   = request.transfers.find(t => t.status === 'en_attente')
   const isEnCours         = getDisplayStatus(request.status, request.dateNeeded) === 'en_cours'
-  const isPaymentPending  = request.status === 'honoree'
 
   const hasCoverageDoc         = docs.some(d => d.type === 'prise_en_charge' && d.owner === 'assisteur')
-  const requiredLoueurDocTypes = LOUEUR_DOCUMENT_TYPES.filter(t => t !== 'autre')
   const loueurDocs             = docs.filter(d => d.owner === 'loueur')
+  // etat_depart / etat_retour requis seulement si dégât signalé — toujours optionnels ici
+  const requiredLoueurDocTypes = ['contrat', 'facture'] as const
   const missingDocs            = requiredLoueurDocTypes.filter(t => !loueurDocs.some(d => d.type === t))
-  const canValidatePayment     = isPaymentPending && missingDocs.length === 0
+  const paymentValidated       = request.paymentStatus === 'paye' || request.paymentStatus === 'non_applicable'
+  const canClose               = request.status === 'honoree'
+    && missingDocs.length === 0
+    && paymentValidated
   const alertState      = getRentalAlertState(request)
   const endDate         = request.status === 'confirmee' ? getEndDate(request) : null
   const extDeadline     = request.status === 'confirmee' ? getExtensionDeadline(request) : null
@@ -249,13 +242,11 @@ export default function DemandeDetailPage({
       {/* ── Réponse loueur ── */}
       {resp && <LoueurResponseCard response={resp} status={request.status} durationDays={request.durationDays} agency={agency} returnedAt={request.returnedAt} />}
 
-      {/* ── Validation paiement ── */}
-      {isPaymentPending && (
-        <PaymentValidationCard
+      {/* ── Conditions de clôture ── */}
+      {request.status === 'honoree' && (
+        <ClosureReadinessCard
           missingDocs={missingDocs}
-          canValidate={canValidatePayment}
-          onValidate={handleValidatePayment}
-          validating={validating}
+          paymentStatus={request.paymentStatus}
         />
       )}
 
@@ -402,7 +393,7 @@ export default function DemandeDetailPage({
               Relancer avec un autre loueur
             </Link>
           )}
-          {canClose && request.status !== 'refusee' && (
+          {canClose && (
             <button
               onClick={handleClose}
               disabled={closing}
@@ -949,30 +940,33 @@ function PageSkeleton() {
   )
 }
 
-// ── Payment validation card ───────────────────────────────────────────────────
+// ── Conditions de clôture ─────────────────────────────────────────────────────
 
-function PaymentValidationCard({
-  missingDocs, canValidate, onValidate, validating,
+function ClosureReadinessCard({
+  missingDocs,
+  paymentStatus,
 }: {
-  missingDocs:  string[]
-  canValidate:  boolean
-  onValidate:   () => void
-  validating:   boolean
+  missingDocs:   string[]
+  paymentStatus: string | undefined
 }) {
+  const docsOk      = missingDocs.length === 0
+  const paymentOk   = paymentStatus === 'paye' || paymentStatus === 'non_applicable'
+  const allReady    = docsOk && paymentOk
+
   return (
-    <div className="rounded-2xl border-2 overflow-hidden border-blue-300">
-      <div className="h-1 w-full bg-blue-500" />
-      <div className="bg-blue-50 p-5 space-y-4">
-        <div className="flex items-center gap-2 text-blue-700 font-semibold">
+    <div className={`rounded-2xl border-2 overflow-hidden ${allReady ? 'border-green-300' : 'border-blue-300'}`}>
+      <div className={`h-1 w-full ${allReady ? 'bg-green-500' : 'bg-blue-500'}`} />
+      <div className={`p-5 space-y-4 ${allReady ? 'bg-green-50' : 'bg-blue-50'}`}>
+        <div className={`flex items-center gap-2 font-semibold ${allReady ? 'text-green-700' : 'text-blue-700'}`}>
           <CheckCircle2 className="w-5 h-5 shrink-0" />
-          Validation du paiement
+          Conditions de clôture
         </div>
 
-        {/* Checklist documents */}
+        {/* Checklist documents loueur */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Documents requis du loueur</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Documents requis du loueur</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {(['contrat', 'etat_depart', 'etat_retour', 'facture'] as const).map(type => {
+            {(['contrat', 'facture'] as const).map(type => {
               const present = !missingDocs.includes(type)
               return (
                 <div key={type} className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium ${
@@ -991,21 +985,25 @@ function PaymentValidationCard({
           </div>
         </div>
 
-        {canValidate ? (
-          <button
-            onClick={onValidate}
-            disabled={validating}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm disabled:opacity-60 transition-colors shadow-sm"
-          >
-            {validating
-              ? <Loader2 className="w-4 h-4 animate-spin" />
-              : <CheckCircle2 className="w-5 h-5" />
-            }
-            {validating ? 'Validation en cours…' : 'Je valide le paiement'}
-          </button>
-        ) : (
+        {/* Validation paiement admin */}
+        <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium ${
+          paymentOk
+            ? 'bg-green-50 border-green-200 text-green-700'
+            : 'bg-white border-slate-200 text-slate-400'
+        }`}>
+          {paymentOk
+            ? <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+            : <AlertCircle className="w-4 h-4 text-slate-300 shrink-0" />
+          }
+          {paymentOk
+            ? (paymentStatus === 'non_applicable' ? 'Aucun paiement requis' : 'Paiement validé par Drives On')
+            : 'En attente de validation par Drives On'
+          }
+        </div>
+
+        {!allReady && (
           <p className="text-sm text-blue-600">
-            {missingDocs.length} document{missingDocs.length > 1 ? 's' : ''} manquant{missingDocs.length > 1 ? 's' : ''} — le bouton de validation apparaîtra une fois tous les documents déposés par le loueur.
+            Le dossier pourra être clôturé une fois tous les documents déposés et le paiement validé par Drives On.
           </p>
         )}
       </div>

@@ -165,6 +165,7 @@ export interface AssistanceRequest extends RequestFormInput {
   adminFlags?:           string[]
   adminUpdatedAt?:       Date
   adminUpdatedBy?:       string
+  paymentStatus?:        string
 }
 
 export function getEffectiveDuration(request: AssistanceRequest): number {
