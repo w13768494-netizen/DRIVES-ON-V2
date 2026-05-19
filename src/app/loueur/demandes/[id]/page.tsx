@@ -45,19 +45,12 @@ function StatusBannerRow({
   )
 }
 
-function LockedByOtherBanner({ agencyName, confirmedAt }: { agencyName?: string; confirmedAt?: Date | string }) {
-  const dateStr = confirmedAt
-    ? new Date(confirmedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-    : null
+function LockedByOtherBanner() {
   return (
     <StatusBannerRow
       icon={<Lock className="w-5 h-5 text-slate-500" />}
-      title="Demande déjà attribuée"
-      description={[
-        agencyName ? `${agencyName} a confirmé cette demande en premier.` : 'Un autre loueur a confirmé cette demande.',
-        dateStr ? `(${dateStr})` : '',
-        'Vous ne pouvez plus répondre.',
-      ].filter(Boolean).join(' ')}
+      title="Demande déjà prise en charge"
+      description="Désolé, cette demande a déjà été validée par un autre loueur. Restez réactif pour les prochaines — la rapidité fait toute la différence !"
       accent="bg-slate-400"
       bg="bg-slate-50 text-slate-700"
       border="border-slate-200"
@@ -225,12 +218,7 @@ const handleConfirmReturn = useCallback(async () => {
         Tableau de bord
       </Link>
 
-      {isLockedByOther && (
-        <LockedByOtherBanner
-          agencyName={request.confirmedAgencyName}
-          confirmedAt={request.confirmedAt}
-        />
-      )}
+      {isLockedByOther && <LockedByOtherBanner />}
       {!isLockedByOther && !canRespond && <ResponsedBanner status={request.status} />}
 
       {/* Prolongation en attente */}

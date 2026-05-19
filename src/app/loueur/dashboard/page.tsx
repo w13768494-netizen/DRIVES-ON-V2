@@ -92,8 +92,12 @@ export default function LoueurDashboardPage() {
     )
   }
 
-  // Dashboard avec agences
-  const filtered = requests.filter(r => {
+  // Dashboard avec agences — exclure les demandes validées par un autre loueur
+  const visibleRequests = requests.filter(r =>
+    !(r.confirmedAgencyId && r.confirmedAgencyId !== r.agencyId)
+  )
+
+  const filtered = visibleRequests.filter(r => {
     if (!matchesTab(r, tab)) return false
     const q = search.toLowerCase()
     return !q
@@ -104,14 +108,14 @@ export default function LoueurDashboardPage() {
   })
 
   const tabCount = (key: FilterTab) =>
-    key === 'toutes' ? requests.length : requests.filter(r => matchesTab(r, key)).length
+    key === 'toutes' ? visibleRequests.length : visibleRequests.filter(r => matchesTab(r, key)).length
 
   return (
     <div className="flex flex-col gap-6">
 
       {header}
 
-      <RentalStats requests={requests} />
+      <RentalStats requests={visibleRequests} />
 
       {/* Recherche + Tabs */}
       <div className="space-y-3">
