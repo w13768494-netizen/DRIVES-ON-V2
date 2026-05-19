@@ -9,6 +9,7 @@ import {
   Shield, Wrench, AlertTriangle, Zap, Save, Loader2, Tag,
   Package, Flag, Activity, TrendingUp, AlertOctagon, Link as LinkIcon,
   ChevronRight, Check, Bell, RefreshCw, X, ChevronDown,
+  Banknote, Calculator, BadgeCheck, AlertCircle,
 } from 'lucide-react'
 import type { RequestStatus } from '@/types/request'
 import { getAdminDossier, saveAdminNote, saveAdminFlags } from '@/services/adminDossierService'
@@ -25,6 +26,7 @@ import {
   REQUIRED_DOCS_BY_STATUS,
   ADMIN_UX_STATUS_LABELS, ADMIN_UX_STATUS_COLORS,
   ADMIN_PAYMENT_LABELS,   ADMIN_PAYMENT_COLORS,
+  type RequestFinanceData, type AdminPaymentStatus,
 } from '@/types/adminReservation'
 import {
   REQUEST_STATUS_LABELS, REQUEST_STATUS_COLORS,
@@ -275,14 +277,6 @@ function MissionCard({ dossier }: { dossier: AdminDossierData }) {
 function LoueurCard({ dossier }: { dossier: AdminDossierData }) {
   const { request, agencyNames } = dossier
   const assignedIds = request.assignedAgencyIds ?? (request.assignedAgencyId ? [request.assignedAgencyId] : [])
-  const effectiveDuration = getEffectiveDuration(request)
-
-  const confirmedPpd  = request.loueurResponse?.pricePerDay ?? request.counterOfferPrice
-  const totalHT       = confirmedPpd != null ? Math.round(confirmedPpd * effectiveDuration * 100) / 100 : undefined
-  const commission    = totalHT     != null ? Math.round(totalHT * 0.15 * 100) / 100 : undefined
-  const amountDue     = totalHT     != null && commission != null
-    ? Math.round((totalHT - commission) * 100) / 100
-    : undefined
 
   return (
     <SectionCard title="Loueurs" icon={Building2}>
@@ -325,11 +319,11 @@ function LoueurCard({ dossier }: { dossier: AdminDossierData }) {
           </InfoRow>
         )}
 
-        {confirmedPpd != null && (
-          <InfoRow label="Tarif confirmé">
-            <span className="flex items-center gap-1.5 text-green-700 font-semibold">
+        {request.loueurResponse?.pricePerDay != null && (
+          <InfoRow label="Prix proposé">
+            <span className="flex items-center gap-1.5 text-teal-700 font-semibold">
               <Check className="w-3.5 h-3.5" />
-              {confirmedPpd} €/j
+              {request.loueurResponse.pricePerDay} €/j
             </span>
           </InfoRow>
         )}
@@ -337,28 +331,6 @@ function LoueurCard({ dossier }: { dossier: AdminDossierData }) {
         {request.loueurResponse?.vehicleModel && (
           <InfoRow label="Modèle proposé">
             <span className="italic">{request.loueurResponse.vehicleModel}</span>
-          </InfoRow>
-        )}
-
-        {totalHT != null && (
-          <InfoRow label="Total HT estimé">
-            <span className="font-semibold">{totalHT} €</span>
-            <span className="text-xs text-slate-400 ml-1">({effectiveDuration}j × {confirmedPpd} €)</span>
-          </InfoRow>
-        )}
-
-        {commission != null && (
-          <InfoRow label="Commission 15%">
-            <span className="flex items-center gap-1.5 text-brand-600">
-              <TrendingUp className="w-3.5 h-3.5" />
-              {commission} €
-            </span>
-          </InfoRow>
-        )}
-
-        {amountDue != null && (
-          <InfoRow label="Dû au loueur">
-            <span className="font-bold text-slate-900">{amountDue} € HT</span>
           </InfoRow>
         )}
 
@@ -737,6 +709,317 @@ function AdminFlagsCard({
   )
 }
 
+// ── Bloc K — Finance ──────────────────────────────────────────────────────────
+
+type FinanceAction = 'recalculate' | 'mark_ready' | 'mark_paid' | 'mark_litigieux' | 'unblock_litige' | 'revert_ready'
+
+const FINANCE_STATUSES_THAT_SHOW_ACTIONS: AdminPaymentStatus[] = [
+  'non_applicable', 'en_attente', 'pret_a_payer', 'litigieux',
+]
+
+const FINANCE_ACTION_LABELS: Record<FinanceAction, string> = {
+  recalculate:    'Calculer les montants',
+  mark_ready:     'Marquer prêt à payer',
+  mark_paid:      'Confirmer le paiement',
+  mark_litigieux: 'Signaler un litige',
+  unblock_litige: 'Débloquer le litige',
+  revert_ready:   'Révertir vers en attente',
+}
+
+const FINANCE_ACTION_CONFIRM_LABEL: Record<FinanceAction, string> = {
+  recalculate:    'Calculer',
+  mark_ready:     'Confirmer',
+  mark_paid:      'Oui, marquer payé',
+  mark_litigieux: 'Signaler',
+  unblock_litige: 'Débloquer',
+  revert_ready:   'Révertir',
+}
+
+function FinanceCard({
+  requestId,
+  request,
+  financeData,
+  onActionDone,
+}: {
+  requestId:   string
+  request:     AdminDossierData['request']
+  financeData: RequestFinanceData
+  onActionDone: () => void
+}) {
+  const { paymentStatus } = financeData
+  const [activeModal,  setActiveModal]  = useState<FinanceAction | null>(null)
+  const [reason,       setReason]       = useState('')
+  const [loading,      setLoading]      = useState(false)
+  const [feedback,     setFeedback]     = useState<{ ok: boolean; msg: string } | null>(null)
+
+  const canShowFinance = ['confirmee', 'honoree', 'cloturee'].includes(request.status)
+  const hasAmounts     = financeData.totalAmountHt != null
+
+  const openModal = (a: FinanceAction) => { setFeedback(null); setReason(''); setActiveModal(a) }
+  const closeModal = () => { setActiveModal(null); setReason('') }
+
+  const handleAction = useCallback(async (action: FinanceAction) => {
+    setLoading(true)
+    const res = await fetch(`/api/admin/requests/${requestId}/finance`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, reason: reason.trim() || undefined }),
+    })
+    const json = await res.json() as { ok?: boolean; newPaymentStatus?: string; error?: string }
+    setLoading(false)
+    closeModal()
+    if (json.ok) {
+      setFeedback({ ok: true, msg: FINANCE_ACTION_LABELS[action] + ' effectué' })
+      onActionDone()
+    } else {
+      setFeedback({ ok: false, msg: json.error ?? 'Erreur' })
+    }
+  }, [requestId, reason, onActionDone])
+
+  return (
+    <>
+      <SectionCard title="Finance" icon={Banknote}>
+        {/* Statut paiement */}
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Statut paiement</span>
+          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${ADMIN_PAYMENT_COLORS[paymentStatus]}`}>
+            {ADMIN_PAYMENT_LABELS[paymentStatus]}
+          </span>
+        </div>
+
+        {/* Prise en charge */}
+        <InfoRow label="Prise en charge">
+          <span className={`text-sm font-medium ${
+            request.coverage.creditType === 'full'    ? 'text-green-700' :
+            request.coverage.creditType === 'partial' ? 'text-amber-700' :
+            'text-slate-500'
+          }`}>
+            {CREDIT_TYPE_LABELS[request.coverage.creditType]}
+          </span>
+        </InfoRow>
+
+        {!canShowFinance ? (
+          <p className="text-xs text-slate-400 italic mt-3 flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0 text-slate-300" />
+            Finance disponible à partir de la confirmation
+          </p>
+        ) : (
+          <>
+            {/* Montants */}
+            {hasAmounts ? (
+              <div className="mt-3 flex flex-col gap-0">
+                <InfoRow label="Tarif confirmé">
+                  <span className="font-semibold">{financeData.confirmedPricePerDay} €/j</span>
+                </InfoRow>
+                <InfoRow label="Durée">
+                  <span>{financeData.confirmedDurationDays} jour{(financeData.confirmedDurationDays ?? 0) > 1 ? 's' : ''}</span>
+                </InfoRow>
+                <InfoRow label="Total HT">
+                  <span className="font-semibold">{financeData.totalAmountHt} €</span>
+                </InfoRow>
+                <InfoRow label={`Commission ${Math.round((financeData.commissionRate) * 100)}%`}>
+                  <span className="flex items-center gap-1.5 text-brand-600">
+                    <TrendingUp className="w-3.5 h-3.5" />
+                    {financeData.commissionAmount} €
+                  </span>
+                </InfoRow>
+                <InfoRow label="Dû au loueur">
+                  <span className="font-bold text-slate-900">{financeData.amountDueToLoueur} € HT</span>
+                </InfoRow>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 italic mt-3 flex items-center gap-1.5">
+                <Calculator className="w-3.5 h-3.5 shrink-0 text-slate-300" />
+                Montants non calculés
+              </p>
+            )}
+
+            {/* Paiement validé */}
+            {paymentStatus === 'paye' && financeData.paymentValidatedAt && (
+              <div className="mt-3 px-3 py-2 rounded-xl bg-green-50 border border-green-200 text-xs text-green-700">
+                <p className="flex items-center gap-1.5 font-semibold">
+                  <BadgeCheck className="w-3.5 h-3.5 shrink-0" />
+                  Payé le {formatDateTime(financeData.paymentValidatedAt)}
+                </p>
+                {financeData.paymentValidatedByName && (
+                  <p className="mt-0.5 opacity-60">par {financeData.paymentValidatedByName}</p>
+                )}
+              </div>
+            )}
+
+            {/* Actions */}
+            {FINANCE_STATUSES_THAT_SHOW_ACTIONS.includes(paymentStatus) && (
+              <div className="mt-4 flex flex-col gap-2">
+                {/* Calculer / Recalculer */}
+                {(paymentStatus === 'non_applicable' || paymentStatus === 'en_attente') && (
+                  <button
+                    onClick={() => openModal('recalculate')}
+                    className="flex items-center gap-2 w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                  >
+                    <Calculator className="w-3.5 h-3.5 shrink-0" />
+                    {hasAmounts ? 'Recalculer les montants' : 'Calculer les montants'}
+                  </button>
+                )}
+                {/* Marquer prêt à payer */}
+                {paymentStatus === 'en_attente' && hasAmounts && (
+                  <button
+                    onClick={() => openModal('mark_ready')}
+                    className="flex items-center gap-2 w-full px-3 py-2 rounded-xl border border-blue-200 bg-blue-50 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
+                  >
+                    <Check className="w-3.5 h-3.5 shrink-0" />
+                    Marquer prêt à payer
+                  </button>
+                )}
+                {/* Marquer litigieux */}
+                {(paymentStatus === 'en_attente' || paymentStatus === 'pret_a_payer') && (
+                  <button
+                    onClick={() => openModal('mark_litigieux')}
+                    className="flex items-center gap-2 w-full px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    Signaler un litige
+                  </button>
+                )}
+                {/* Confirmer paiement */}
+                {paymentStatus === 'pret_a_payer' && (
+                  <button
+                    onClick={() => openModal('mark_paid')}
+                    className="flex items-center gap-2 w-full px-3 py-2 rounded-xl border border-green-300 bg-green-600 text-xs font-bold text-white hover:bg-green-700 transition-colors"
+                  >
+                    <BadgeCheck className="w-3.5 h-3.5 shrink-0" />
+                    Confirmer le paiement
+                  </button>
+                )}
+                {/* Révertir */}
+                {paymentStatus === 'pret_a_payer' && (
+                  <button
+                    onClick={() => openModal('revert_ready')}
+                    className="flex items-center gap-2 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-500 hover:bg-slate-50 transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+                    Révertir vers en attente
+                  </button>
+                )}
+                {/* Débloquer litige */}
+                {paymentStatus === 'litigieux' && (
+                  <button
+                    onClick={() => openModal('unblock_litige')}
+                    className="flex items-center gap-2 w-full px-3 py-2 rounded-xl border border-orange-200 bg-orange-50 text-xs font-semibold text-orange-700 hover:bg-orange-100 transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+                    Débloquer le litige
+                  </button>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Feedback inline */}
+        {feedback && (
+          <div className={`mt-3 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium ${
+            feedback.ok
+              ? 'bg-green-50 text-green-700 border border-green-200'
+              : 'bg-red-50 text-red-600 border border-red-200'
+          }`}>
+            {feedback.ok
+              ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              : <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
+            <span className="flex-1">{feedback.msg}</span>
+            <button onClick={() => setFeedback(null)} className="p-0.5 hover:opacity-60">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+      </SectionCard>
+
+      {/* ── Modal finance ──────────────────────────────────────────────────────── */}
+      {activeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                activeModal === 'mark_paid'      ? 'bg-green-100'  :
+                activeModal === 'mark_litigieux' ? 'bg-red-100'    :
+                'bg-emerald-100'
+              }`}>
+                {activeModal === 'mark_paid'
+                  ? <BadgeCheck className="w-5 h-5 text-green-600" />
+                  : activeModal === 'mark_litigieux'
+                  ? <AlertTriangle className="w-5 h-5 text-red-600" />
+                  : <Banknote className="w-5 h-5 text-emerald-600" />}
+              </div>
+              <div>
+                <h2 className="font-bold text-slate-900 text-sm">{FINANCE_ACTION_LABELS[activeModal]}</h2>
+                {activeModal === 'mark_paid' && (
+                  <p className="text-xs text-red-500 font-semibold mt-0.5">Action irréversible</p>
+                )}
+              </div>
+            </div>
+
+            {/* Résumé montants si pertinent */}
+            {(activeModal === 'mark_ready' || activeModal === 'mark_paid') && hasAmounts && (
+              <div className="bg-slate-50 rounded-xl p-3 mb-4 text-xs">
+                <div className="flex justify-between mb-1">
+                  <span className="text-slate-500">Total HT</span>
+                  <span className="font-semibold">{financeData.totalAmountHt} €</span>
+                </div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-slate-500">Commission</span>
+                  <span className="text-brand-600">− {financeData.commissionAmount} €</span>
+                </div>
+                <div className="flex justify-between font-bold border-t border-slate-200 pt-1 mt-1">
+                  <span>Dû au loueur</span>
+                  <span>{financeData.amountDueToLoueur} €</span>
+                </div>
+              </div>
+            )}
+
+            {/* Raison si applicable */}
+            {(activeModal === 'mark_litigieux' || activeModal === 'revert_ready') && (
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-slate-500 mb-1.5">
+                  Raison {activeModal === 'mark_litigieux' ? '(recommandée)' : '(optionnelle)'}
+                </label>
+                <textarea
+                  value={reason}
+                  onChange={e => setReason(e.target.value)}
+                  rows={2}
+                  placeholder="Préciser…"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 resize-none"
+                />
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={closeModal}
+                className="flex-1 px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => handleAction(activeModal)}
+                disabled={loading}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold disabled:opacity-50 transition-colors ${
+                  activeModal === 'mark_paid'      ? 'bg-green-600 hover:bg-green-700' :
+                  activeModal === 'mark_litigieux' ? 'bg-red-500   hover:bg-red-600'   :
+                  'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                {loading
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <Check   className="w-3.5 h-3.5" />}
+                {FINANCE_ACTION_CONFIRM_LABEL[activeModal]}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 // ── Whitelist transitions côté client (miroir de la route API) ───────────────
 
 type StatusTransition = { from: RequestStatus; to: RequestStatus; label: string }
@@ -1099,6 +1382,12 @@ export default function AdminDossierPage() {
             {/* Colonne admin (1/3) */}
             <div className="flex flex-col gap-4">
               <OperationalStatusCard dossier={dossier} documents={documents} />
+              <FinanceCard
+                requestId={id}
+                request={request}
+                financeData={dossier.financeData}
+                onActionDone={reload}
+              />
               <AdminActionsCard
                 requestId={id}
                 currentStatus={request.status}

@@ -6,7 +6,7 @@ import {
   PlusCircle, Send, Eye, CheckCircle2, XCircle,
   ArrowRightLeft, CheckCheck, ThumbsDown, ArrowRight,
   Star, Archive, Lock, Users, Tag, CalendarPlus, CalendarCheck, BadgeCheck,
-  RefreshCw, Bell,
+  RefreshCw, Bell, Banknote,
 } from 'lucide-react'
 import { TIMELINE_EVENT_LABELS } from '@/types/requestTimeline'
 import type { RequestTimelineEvent, TimelineEventType } from '@/types/requestTimeline'
@@ -33,6 +33,7 @@ const TIMELINE_ICONS: Record<TimelineEventType, React.ReactNode> = {
   paiement_valide:           <BadgeCheck     className="w-4 h-4" />,
   admin_changement_statut:   <RefreshCw      className="w-4 h-4" />,
   admin_relance:             <Bell           className="w-4 h-4" />,
+  admin_finance:             <Banknote       className="w-4 h-4" />,
 }
 
 const TIMELINE_COLORS: Record<TimelineEventType, string> = {
@@ -57,6 +58,7 @@ const TIMELINE_COLORS: Record<TimelineEventType, string> = {
   paiement_valide:           'bg-green-100   text-green-700  border-green-200',
   admin_changement_statut:   'bg-violet-100  text-violet-600 border-violet-200',
   admin_relance:             'bg-violet-100  text-violet-600 border-violet-200',
+  admin_finance:             'bg-emerald-100 text-emerald-600 border-emerald-200',
 }
 
 interface Props {

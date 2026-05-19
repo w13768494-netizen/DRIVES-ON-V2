@@ -12,7 +12,12 @@ export type AdminUxStatus =
 
 export type AdminUrgencyLevel = 'critique' | 'urgent' | 'attention' | 'normal'
 
-export type AdminPaymentStatus = 'en_attente' | 'paye' | 'non_applicable'
+export type AdminPaymentStatus =
+  | 'non_applicable'
+  | 'en_attente'
+  | 'pret_a_payer'
+  | 'paye'
+  | 'litigieux'
 
 export const ADMIN_UX_STATUS_LABELS: Record<AdminUxStatus, string> = {
   en_attente:       'En attente',
@@ -33,15 +38,33 @@ export const ADMIN_UX_STATUS_COLORS: Record<AdminUxStatus, string> = {
 }
 
 export const ADMIN_PAYMENT_LABELS: Record<AdminPaymentStatus, string> = {
+  non_applicable: '—',
   en_attente:     'À payer',
+  pret_a_payer:   'Prêt à payer',
   paye:           'Payé',
-  non_applicable: '',
+  litigieux:      'Litigieux',
 }
 
 export const ADMIN_PAYMENT_COLORS: Record<AdminPaymentStatus, string> = {
-  en_attente:     'bg-violet-100 text-violet-700',
-  paye:           'bg-green-100 text-green-700',
-  non_applicable: '',
+  non_applicable: 'bg-slate-50    text-slate-400',
+  en_attente:     'bg-violet-100  text-violet-700',
+  pret_a_payer:   'bg-blue-100    text-blue-700',
+  paye:           'bg-green-100   text-green-700',
+  litigieux:      'bg-red-100     text-red-700',
+}
+
+// ── Finance data (admin-only, séparé de AssistanceRequest) ────────────────────
+
+export interface RequestFinanceData {
+  confirmedPricePerDay:   number | null
+  confirmedDurationDays:  number | null
+  commissionRate:         number
+  commissionAmount:       number | null
+  totalAmountHt:          number | null
+  amountDueToLoueur:      number | null
+  paymentStatus:          AdminPaymentStatus
+  paymentValidatedAt:     Date | null
+  paymentValidatedByName: string | null
 }
 
 // Documents requis par statut — règle métier centralisée ici

@@ -6,6 +6,8 @@ export type AdminAction =
   | 'flags_updated'
   | 'status_changed'
   | 'loueur_relance'
+  | 'finance_recalculated'
+  | 'payment_status_changed'
   | 'loueur_created'
   | 'access_request_accepted'
   | 'access_request_rejected'

@@ -20,6 +20,7 @@ export type TimelineEventType =
   | 'paiement_valide'
   | 'admin_changement_statut'
   | 'admin_relance'
+  | 'admin_finance'
 
 export const TIMELINE_EVENT_LABELS: Record<TimelineEventType, string> = {
   creation:           'Demande créée',
@@ -43,6 +44,7 @@ export const TIMELINE_EVENT_LABELS: Record<TimelineEventType, string> = {
   paiement_valide:           'Paiement validé par l\'assisteur',
   admin_changement_statut:   'Statut modifié par l\'administration',
   admin_relance:             'Partenaire relancé par l\'administration',
+  admin_finance:             'Mise à jour financière',
 }
 
 export const TIMELINE_EVENT_COLORS: Record<TimelineEventType, string> = {
@@ -67,6 +69,7 @@ export const TIMELINE_EVENT_COLORS: Record<TimelineEventType, string> = {
   paiement_valide:           'bg-green-100   text-green-700',
   admin_changement_statut:   'bg-violet-100  text-violet-700',
   admin_relance:             'bg-violet-100  text-violet-700',
+  admin_finance:             'bg-emerald-100 text-emerald-700',
 }
 
 export interface RequestTimelineEvent {

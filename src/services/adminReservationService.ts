@@ -92,19 +92,34 @@ function computeUrgencyLevel(
   return 'normal'
 }
 
-// ── Statut paiement ───────────────────────────────────────────────────────────
+// ── Statut paiement (lecture depuis DB) ───────────────────────────────────────
 
-function computePaymentStatus(status: RequestStatus): AdminPaymentStatus {
-  if (status === 'honoree')  return 'en_attente'
-  if (status === 'cloturee') return 'paye'
-  return 'non_applicable'
+const VALID_PAYMENT_STATUSES: AdminPaymentStatus[] = [
+  'non_applicable', 'en_attente', 'pret_a_payer', 'paye', 'litigieux',
+]
+
+async function loadPaymentStatuses(
+  requestIds: string[],
+): Promise<Map<string, AdminPaymentStatus>> {
+  const map = new Map<string, AdminPaymentStatus>()
+  if (requestIds.length === 0) return map
+  const { data } = await supabase
+    .from('assistance_requests')
+    .select('id, payment_status')
+    .in('id', requestIds)
+  for (const row of (data ?? []) as { id: string; payment_status: string }[]) {
+    const v = row.payment_status as AdminPaymentStatus
+    map.set(row.id, VALID_PAYMENT_STATUSES.includes(v) ? v : 'non_applicable')
+  }
+  return map
 }
 
 // ── Enrichissement ────────────────────────────────────────────────────────────
 
 function enrichRequest(
-  request: AssistanceRequest,
-  docsMap: Map<string, RequestDocumentType[]>,
+  request:          AssistanceRequest,
+  docsMap:          Map<string, RequestDocumentType[]>,
+  paymentStatusMap: Map<string, AdminPaymentStatus>,
 ): AdminReservation {
   const presentTypes              = docsMap.get(request.id) ?? []
   const missingDocuments          = computeMissingDocs(request.status, presentTypes)
@@ -112,7 +127,7 @@ function enrichRequest(
   const minutesSinceLastActivity  = Math.floor((Date.now() - lastActivityAt.getTime()) / 60000)
   const uxStatus                  = computeUxStatus(request.status, missingDocuments)
   const urgencyLevel              = computeUrgencyLevel(request, uxStatus, minutesSinceLastActivity)
-  const paymentStatus             = computePaymentStatus(request.status)
+  const paymentStatus             = paymentStatusMap.get(request.id) ?? 'non_applicable'
 
   const partial = {
     ...request,
@@ -137,10 +152,15 @@ const URGENCY_ORDER: Record<AdminUrgencyLevel, number> = {
 
 export async function getAdminReservations(): Promise<AdminReservation[]> {
   const requests = await getAllRequests()
-  const docsMap  = await loadDocsByRequest(requests.map(r => r.id))
+  const ids      = requests.map(r => r.id)
+
+  const [docsMap, paymentStatusMap] = await Promise.all([
+    loadDocsByRequest(ids),
+    loadPaymentStatuses(ids),
+  ])
 
   return requests
-    .map(r => enrichRequest(r, docsMap))
+    .map(r => enrichRequest(r, docsMap, paymentStatusMap))
     .sort((a, b) => {
       const diff = URGENCY_ORDER[a.urgencyLevel] - URGENCY_ORDER[b.urgencyLevel]
       if (diff !== 0) return diff

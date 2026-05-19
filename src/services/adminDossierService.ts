@@ -2,7 +2,10 @@ import { supabase }        from '@/lib/supabaseClient'
 import { getRequestById }  from './requestService'
 import { logAdminAction }  from './adminAuditService'
 import type { AssistanceRequest } from '@/types/request'
-import type { AdminUxStatus, AdminUrgencyLevel, AdminPaymentStatus } from '@/types/adminReservation'
+import type {
+  AdminUxStatus, AdminUrgencyLevel, AdminPaymentStatus,
+  RequestFinanceData,
+} from '@/types/adminReservation'
 import { REQUIRED_DOCS_BY_STATUS } from '@/types/adminReservation'
 import type { RequestDocumentType } from '@/types/requestDocument'
 
@@ -21,10 +24,10 @@ export interface AdminDossierData {
   adminUpdatedByName:      string | null
   uxStatus:                AdminUxStatus
   urgencyLevel:            AdminUrgencyLevel
-  paymentStatus:           AdminPaymentStatus
+  paymentStatus:           AdminPaymentStatus   // miroir de financeData.paymentStatus
+  financeData:             RequestFinanceData
   lastActivityAt:          Date
   minutesSinceLastActivity: number
-  // computed from documents passed by caller — not loaded here
   missingDocTypes:         (docs: RequestDocumentType[]) => RequestDocumentType[]
 }
 
@@ -56,9 +59,9 @@ function computeUrgencyLevel(
   return 'normal'
 }
 
-function computePaymentStatus(status: AssistanceRequest['status']): AdminPaymentStatus {
-  if (status === 'honoree')  return 'en_attente'
-  if (status === 'cloturee') return 'paye'
+function castPaymentStatus(raw: string | null | undefined): AdminPaymentStatus {
+  const valid: AdminPaymentStatus[] = ['non_applicable', 'en_attente', 'pret_a_payer', 'paye', 'litigieux']
+  if (raw && valid.includes(raw as AdminPaymentStatus)) return raw as AdminPaymentStatus
   return 'non_applicable'
 }
 
@@ -68,52 +71,88 @@ export async function getAdminDossier(id: string): Promise<AdminDossierData | nu
   const request = await getRequestById(id)
   if (!request) return null
 
-  // Agency names lookup
   const agencyIds = [...new Set([
     ...(request.assignedAgencyIds ?? []),
     request.assignedAgencyId,
     request.confirmedAgencyId,
   ].filter(Boolean) as string[])]
 
+  // ── Requêtes parallèles ───────────────────────────────────────────────────────
+  const [agencyRes, requesterRes, adminRes, finRes] = await Promise.all([
+    agencyIds.length > 0
+      ? supabase.from('rental_agencies').select('id, agency_name').in('id', agencyIds)
+      : Promise.resolve({ data: [] }),
+    request.createdByUserId && request.createdByUserId !== 'unknown'
+      ? supabase.from('profiles').select('full_name, company_name, phone').eq('id', request.createdByUserId).single()
+      : Promise.resolve({ data: null }),
+    request.adminUpdatedBy
+      ? supabase.from('profiles').select('full_name').eq('id', request.adminUpdatedBy).single()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from('assistance_requests')
+      .select('confirmed_price_per_day, confirmed_duration_days, commission_rate, commission_amount, total_amount_ht, amount_due_to_loueur, payment_status, payment_validated_at, payment_validated_by')
+      .eq('id', id)
+      .single(),
+  ])
+
+  // Agency names
   const agencyNames = new Map<string, string>()
-  if (agencyIds.length > 0) {
-    const { data: agencies } = await supabase
-      .from('rental_agencies')
-      .select('id, agency_name')
-      .in('id', agencyIds)
-    for (const a of (agencies ?? []) as { id: string; agency_name: string }[]) {
-      agencyNames.set(a.id, a.agency_name)
-    }
+  for (const a of (agencyRes.data ?? []) as { id: string; agency_name: string }[]) {
+    agencyNames.set(a.id, a.agency_name)
   }
 
   // Requester profile
   let requesterProfile: RequesterProfile | null = null
-  if (request.createdByUserId && request.createdByUserId !== 'unknown') {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('full_name, company_name, phone')
-      .eq('id', request.createdByUserId)
-      .single()
-    if (profile) {
-      const p = profile as { full_name: string; company_name: string | null; phone: string | null }
-      requesterProfile = { fullName: p.full_name, companyName: p.company_name, phone: p.phone }
-    }
+  if (requesterRes.data) {
+    const p = requesterRes.data as { full_name: string; company_name: string | null; phone: string | null }
+    requesterProfile = { fullName: p.full_name, companyName: p.company_name, phone: p.phone }
   }
 
   // Admin author name
-  let adminUpdatedByName: string | null = null
-  if (request.adminUpdatedBy) {
-    const { data: adminProfile } = await supabase
+  const adminUpdatedByName = adminRes.data
+    ? (adminRes.data as { full_name: string }).full_name
+    : null
+
+  // Finance data
+  type FinRow = {
+    confirmed_price_per_day:  number | null
+    confirmed_duration_days:  number | null
+    commission_rate:          number
+    commission_amount:        number | null
+    total_amount_ht:          number | null
+    amount_due_to_loueur:     number | null
+    payment_status:           string
+    payment_validated_at:     string | null
+    payment_validated_by:     string | null
+  }
+  const fin = finRes.data as FinRow | null
+
+  // Payment validated by name (sequential — only if needed)
+  let paymentValidatedByName: string | null = null
+  if (fin?.payment_validated_by) {
+    const { data: validatedByProfile } = await supabase
       .from('profiles')
       .select('full_name')
-      .eq('id', request.adminUpdatedBy)
+      .eq('id', fin.payment_validated_by)
       .single()
-    if (adminProfile) {
-      adminUpdatedByName = (adminProfile as { full_name: string }).full_name
+    if (validatedByProfile) {
+      paymentValidatedByName = (validatedByProfile as { full_name: string }).full_name
     }
   }
 
-  // UX enrichments — computed with empty docs initially; caller recomputes with real docs
+  const financeData: RequestFinanceData = {
+    confirmedPricePerDay:   fin?.confirmed_price_per_day  ?? null,
+    confirmedDurationDays:  fin?.confirmed_duration_days  ?? null,
+    commissionRate:         fin?.commission_rate          ?? 0.15,
+    commissionAmount:       fin?.commission_amount        ?? null,
+    totalAmountHt:          fin?.total_amount_ht          ?? null,
+    amountDueToLoueur:      fin?.amount_due_to_loueur     ?? null,
+    paymentStatus:          castPaymentStatus(fin?.payment_status),
+    paymentValidatedAt:     fin?.payment_validated_at ? new Date(fin.payment_validated_at) : null,
+    paymentValidatedByName,
+  }
+
+  // ── UX enrichments ────────────────────────────────────────────────────────────
   const lastEvent = request.timeline[request.timeline.length - 1]
   const lastActivityAt = lastEvent ? new Date(lastEvent.at) : new Date(request.createdAt)
   const minutesSinceLastActivity = Math.floor((Date.now() - lastActivityAt.getTime()) / 60000)
@@ -126,7 +165,6 @@ export async function getAdminDossier(id: string): Promise<AdminDossierData | nu
 
   const uxStatus = computeUxStatus(request.status, missingDocTypes([]))
   const urgencyLevel = computeUrgencyLevel(request, uxStatus, minutesSinceLastActivity)
-  const paymentStatus = computePaymentStatus(request.status)
 
   return {
     request,
@@ -135,7 +173,8 @@ export async function getAdminDossier(id: string): Promise<AdminDossierData | nu
     adminUpdatedByName,
     uxStatus,
     urgencyLevel,
-    paymentStatus,
+    paymentStatus:          financeData.paymentStatus,
+    financeData,
     lastActivityAt,
     minutesSinceLastActivity,
     missingDocTypes,
