@@ -338,6 +338,19 @@ export async function sendRequest(
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ request }),
     }).catch(err => console.error('[sendRequest] notify-loueur failed:', err))
+
+    // Associer city_id pour analytics nationales
+    if (request.location?.latitude != null && request.location?.longitude != null) {
+      fetch('/api/requests/assign-city', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          requestId: request.id,
+          latitude:  request.location.latitude,
+          longitude: request.location.longitude,
+        }),
+      }).catch(() => {})
+    }
   }
 
   return request

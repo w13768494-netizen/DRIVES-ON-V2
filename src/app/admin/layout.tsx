@@ -3,13 +3,14 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { DrivesOnLogo } from '@/components/shared/DrivesOnLogo'
-import { Users, MapPin, CalendarClock, UserPlus } from 'lucide-react'
+import { Users, MapPin, CalendarClock, UserPlus, BarChart2 } from 'lucide-react'
 
 const NAV = [
-  { href: '/admin/reservations',    icon: CalendarClock, label: 'Réservations'      },
-  { href: '/admin/demandes-acces',  icon: UserPlus,      label: 'Demandes d\'accès' },
-  { href: '/admin/utilisateurs',    icon: Users,         label: 'Utilisateurs'      },
-  { href: '/admin/deploiement',     icon: MapPin,        label: 'Déploiement'       },
+  { href: '/admin/reservations',              icon: CalendarClock, label: 'Réservations',        exact: false },
+  { href: '/admin/demandes-acces',            icon: UserPlus,      label: 'Demandes d\'accès',   exact: false },
+  { href: '/admin/utilisateurs',              icon: Users,         label: 'Utilisateurs',        exact: false },
+  { href: '/admin/deploiement',               icon: MapPin,        label: 'Déploiement',         exact: true  },
+  { href: '/admin/deploiement/national',      icon: BarChart2,     label: 'Analytics nationales', exact: false },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -33,8 +34,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-0.5">
-          {NAV.map(({ href, icon: Icon, label }) => {
-            const active = pathname.startsWith(href)
+          {NAV.map(({ href, icon: Icon, label, exact }) => {
+            const active = exact ? pathname === href : pathname.startsWith(href)
             return (
               <Link
                 key={href}
