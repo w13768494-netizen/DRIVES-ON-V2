@@ -18,6 +18,8 @@ export type TimelineEventType =
   | 'prolongation_reponse'
   | 'retour_confirme'
   | 'paiement_valide'
+  | 'admin_changement_statut'
+  | 'admin_relance'
 
 export const TIMELINE_EVENT_LABELS: Record<TimelineEventType, string> = {
   creation:           'Demande créée',
@@ -37,8 +39,10 @@ export const TIMELINE_EVENT_LABELS: Record<TimelineEventType, string> = {
   cloture:               'Dossier clôturé',
   prolongation_demandee: 'Prolongation demandée',
   prolongation_reponse:  'Réponse à la prolongation',
-  retour_confirme:       'Retour du véhicule confirmé par le loueur',
-  paiement_valide:       'Paiement validé par l\'assisteur',
+  retour_confirme:           'Retour du véhicule confirmé par le loueur',
+  paiement_valide:           'Paiement validé par l\'assisteur',
+  admin_changement_statut:   'Statut modifié par l\'administration',
+  admin_relance:             'Partenaire relancé par l\'administration',
 }
 
 export const TIMELINE_EVENT_COLORS: Record<TimelineEventType, string> = {
@@ -59,15 +63,17 @@ export const TIMELINE_EVENT_COLORS: Record<TimelineEventType, string> = {
   cloture:               'bg-slate-100   text-slate-500',
   prolongation_demandee: 'bg-orange-100  text-orange-700',
   prolongation_reponse:  'bg-orange-100  text-orange-700',
-  retour_confirme:       'bg-blue-100    text-blue-700',
-  paiement_valide:       'bg-green-100   text-green-700',
+  retour_confirme:           'bg-blue-100    text-blue-700',
+  paiement_valide:           'bg-green-100   text-green-700',
+  admin_changement_statut:   'bg-violet-100  text-violet-700',
+  admin_relance:             'bg-violet-100  text-violet-700',
 }
 
 export interface RequestTimelineEvent {
   id:        string
   type:      TimelineEventType
   at:        Date
-  byRole:    'assisteur' | 'loueur' | 'system'
+  byRole:    'assisteur' | 'loueur' | 'system' | 'admin'
   agencyId?: string
   message?:  string
 }

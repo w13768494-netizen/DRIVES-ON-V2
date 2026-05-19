@@ -5,6 +5,7 @@ export type AdminAction =
   | 'note_saved'
   | 'flags_updated'
   | 'status_changed'
+  | 'loueur_relance'
   | 'loueur_created'
   | 'access_request_accepted'
   | 'access_request_rejected'

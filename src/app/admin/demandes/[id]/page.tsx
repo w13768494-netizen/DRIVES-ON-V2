@@ -8,8 +8,9 @@ import {
   Calendar, Clock, FileText, CheckCircle2, XCircle, Eye, EyeOff,
   Shield, Wrench, AlertTriangle, Zap, Save, Loader2, Tag,
   Package, Flag, Activity, TrendingUp, AlertOctagon, Link as LinkIcon,
-  ChevronRight, Check,
+  ChevronRight, Check, Bell, RefreshCw, X, ChevronDown,
 } from 'lucide-react'
+import type { RequestStatus } from '@/types/request'
 import { getAdminDossier, saveAdminNote, saveAdminFlags } from '@/services/adminDossierService'
 import { getDocumentsByRequest }                          from '@/services/documentService'
 import { computeAlerts }                                  from '@/services/adminAlertService'
@@ -463,9 +464,16 @@ function TimelineCard({ dossier }: { dossier: AdminDossierData }) {
   const sorted = [...timeline].reverse()
 
   const roleColor = (role: string) =>
-    role === 'assisteur' ? 'text-brand-600 bg-brand-50' :
-    role === 'loueur'    ? 'text-green-700 bg-green-50' :
+    role === 'assisteur' ? 'text-brand-600 bg-brand-50'     :
+    role === 'loueur'    ? 'text-green-700 bg-green-50'     :
+    role === 'admin'     ? 'text-violet-700 bg-violet-50'   :
     'text-slate-500 bg-slate-100'
+
+  const roleLabel = (role: string) =>
+    role === 'assisteur' ? 'Assisteur' :
+    role === 'loueur'    ? 'Loueur'    :
+    role === 'admin'     ? 'ADM'       :
+    'Système'
 
   return (
     <SectionCard title="Timeline" icon={Activity}>
@@ -483,7 +491,7 @@ function TimelineCard({ dossier }: { dossier: AdminDossierData }) {
               <div className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center text-[10px] font-bold z-10 ${
                 TIMELINE_EVENT_COLORS[evt.type]
               }`}>
-                {evt.byRole === 'assisteur' ? 'A' : evt.byRole === 'loueur' ? 'L' : 'S'}
+                {evt.byRole === 'assisteur' ? 'A' : evt.byRole === 'loueur' ? 'L' : evt.byRole === 'admin' ? '★' : 'S'}
               </div>
               {/* Content */}
               <div className="flex-1 pb-3 pt-1">
@@ -493,7 +501,7 @@ function TimelineCard({ dossier }: { dossier: AdminDossierData }) {
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   <span className="text-[11px] text-slate-400">{formatDateTime(new Date(evt.at))}</span>
                   <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${roleColor(evt.byRole)}`}>
-                    {evt.byRole === 'assisteur' ? 'Assisteur' : evt.byRole === 'loueur' ? 'Loueur' : 'Système'}
+                    {roleLabel(evt.byRole)}
                   </span>
                 </div>
                 {evt.message && (
@@ -729,6 +737,232 @@ function AdminFlagsCard({
   )
 }
 
+// ── Whitelist transitions côté client (miroir de la route API) ───────────────
+
+type StatusTransition = { from: RequestStatus; to: RequestStatus; label: string }
+const STATUS_WHITELIST: StatusTransition[] = [
+  { from: 'envoyee',          to: 'recue',    label: 'Marquer comme reçue manuellement' },
+  { from: 'recue',            to: 'envoyee',  label: 'Révertir vers envoyée' },
+  { from: 'transfert_valide', to: 'envoyee',  label: 'Débloquer le transfert → envoyée' },
+  { from: 'transfert_valide', to: 'recue',    label: 'Débloquer le transfert → reçue' },
+  { from: 'honoree',          to: 'cloturee', label: 'Clôturer manuellement' },
+]
+
+// ── Bloc J — Actions opérationnelles admin ────────────────────────────────────
+
+function AdminActionsCard({
+  requestId, currentStatus, hasAssignedAgencies,
+  onActionDone,
+}: {
+  requestId:          string
+  currentStatus:      RequestStatus
+  hasAssignedAgencies: boolean
+  onActionDone:       () => void
+}) {
+  const availableTransitions = STATUS_WHITELIST.filter(t => t.from === currentStatus)
+  const canRelance = (currentStatus === 'envoyee' || currentStatus === 'recue') && hasAssignedAgencies
+
+  // ── État modals ────────────────────────────────────────────────────────────
+  const [relanceOpen,  setRelanceOpen]  = useState(false)
+  const [statusOpen,   setStatusOpen]   = useState(false)
+  const [selectedTo,   setSelectedTo]   = useState<RequestStatus | ''>('')
+  const [reason,       setReason]       = useState('')
+  const [loading,      setLoading]      = useState(false)
+  const [feedback,     setFeedback]     = useState<{ ok: boolean; msg: string } | null>(null)
+
+  const resetFeedback = () => setFeedback(null)
+
+  // ── Relance ────────────────────────────────────────────────────────────────
+  const handleRelance = useCallback(async () => {
+    setLoading(true)
+    const res = await fetch(`/api/admin/requests/${requestId}/relance`, { method: 'POST' })
+    const json = await res.json() as { ok?: boolean; agencies_notified?: number; error?: string }
+    setLoading(false)
+    setRelanceOpen(false)
+    if (json.ok) {
+      setFeedback({ ok: true, msg: `${json.agencies_notified} partenaire${(json.agencies_notified ?? 0) > 1 ? 's' : ''} relancé${(json.agencies_notified ?? 0) > 1 ? 's' : ''}` })
+      onActionDone()
+    } else {
+      setFeedback({ ok: false, msg: json.error ?? 'Erreur lors de la relance' })
+    }
+  }, [requestId, onActionDone])
+
+  // ── Changement statut ──────────────────────────────────────────────────────
+  const handleStatusChange = useCallback(async () => {
+    if (!selectedTo) return
+    setLoading(true)
+    const res = await fetch(`/api/admin/requests/${requestId}/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toStatus: selectedTo, message: reason.trim() || undefined }),
+    })
+    const json = await res.json() as { ok?: boolean; fromStatus?: string; toStatus?: string; error?: string }
+    setLoading(false)
+    setStatusOpen(false)
+    setSelectedTo('')
+    setReason('')
+    if (json.ok) {
+      setFeedback({ ok: true, msg: `Statut → ${REQUEST_STATUS_LABELS[json.toStatus as RequestStatus]}` })
+      onActionDone()
+    } else {
+      setFeedback({ ok: false, msg: json.error ?? 'Erreur lors du changement de statut' })
+    }
+  }, [requestId, selectedTo, reason, onActionDone])
+
+  if (!canRelance && availableTransitions.length === 0) return null
+
+  return (
+    <>
+      <SectionCard title="Actions opérationnelles" icon={Activity}>
+        <div className="flex flex-col gap-2">
+
+          {/* Relancer le partenaire */}
+          {canRelance && (
+            <button
+              onClick={() => { resetFeedback(); setRelanceOpen(true) }}
+              className="flex items-center gap-2.5 w-full px-3.5 py-2.5 rounded-xl border border-amber-200 bg-white text-sm font-semibold text-amber-700 hover:bg-amber-50 transition-colors"
+            >
+              <Bell className="w-4 h-4 shrink-0" />
+              Relancer le partenaire
+            </button>
+          )}
+
+          {/* Modifier le statut */}
+          {availableTransitions.length > 0 && (
+            <button
+              onClick={() => { resetFeedback(); setStatusOpen(true) }}
+              className="flex items-center gap-2.5 w-full px-3.5 py-2.5 rounded-xl border border-violet-200 bg-white text-sm font-semibold text-violet-700 hover:bg-violet-50 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4 shrink-0" />
+              Modifier le statut
+            </button>
+          )}
+        </div>
+
+        {/* Feedback inline */}
+        {feedback && (
+          <div className={`mt-3 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium ${
+            feedback.ok
+              ? 'bg-green-50 text-green-700 border border-green-200'
+              : 'bg-red-50 text-red-600 border border-red-200'
+          }`}>
+            {feedback.ok
+              ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              : <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
+            {feedback.msg}
+            <button onClick={resetFeedback} className="ml-auto p-0.5 hover:opacity-60">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+      </SectionCard>
+
+      {/* ── Modal relance ──────────────────────────────────────────────────── */}
+      {relanceOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                <Bell className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h2 className="font-bold text-slate-900 text-sm">Relancer le partenaire</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Une notification sera envoyée à chaque loueur assigné</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500 mb-5">
+              Cette action est enregistrée dans l'audit et dans la timeline du dossier.
+              Un anti-spam de 30 min est actif.
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setRelanceOpen(false)}
+                className="flex-1 px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleRelance}
+                disabled={loading}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold disabled:opacity-50 transition-colors"
+              >
+                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
+                Confirmer la relance
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal changement statut ─────────────────────────────────────────── */}
+      {statusOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+                <RefreshCw className="w-5 h-5 text-violet-600" />
+              </div>
+              <div>
+                <h2 className="font-bold text-slate-900 text-sm">Modifier le statut</h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Statut actuel : <span className="font-semibold text-slate-600">{REQUEST_STATUS_LABELS[currentStatus]}</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Sélection du statut cible */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-slate-500 mb-1.5">Statut cible</label>
+              <div className="relative">
+                <select
+                  value={selectedTo}
+                  onChange={e => setSelectedTo(e.target.value as RequestStatus)}
+                  className="w-full appearance-none px-3 py-2.5 pr-8 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400"
+                >
+                  <option value="">— Choisir —</option>
+                  {availableTransitions.map(t => (
+                    <option key={t.to} value={t.to}>{REQUEST_STATUS_LABELS[t.to]} — {t.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Raison optionnelle */}
+            <div className="mb-5">
+              <label className="block text-xs font-semibold text-slate-500 mb-1.5">Raison (optionnel)</label>
+              <textarea
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                rows={2}
+                placeholder="Préciser si nécessaire…"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 resize-none"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setStatusOpen(false); setSelectedTo(''); setReason('') }}
+                className="flex-1 px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleStatusChange}
+                disabled={loading || !selectedTo}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold disabled:opacity-50 transition-colors"
+              >
+                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                Confirmer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 // ── Page principale ───────────────────────────────────────────────────────────
 
 export default function AdminDossierPage() {
@@ -739,6 +973,17 @@ export default function AdminDossierPage() {
   const [documents, setDocuments] = useState<RequestDocument[]>([])
   const [loading,   setLoading]   = useState(true)
   const [notFound,  setNotFound]  = useState(false)
+
+  const reload = useCallback(() => {
+    if (!id) return
+    Promise.all([
+      getAdminDossier(id),
+      getDocumentsByRequest(id),
+    ]).then(([doss, docs]) => {
+      if (!doss) { setNotFound(true) } else { setDossier(doss) }
+      setDocuments(docs)
+    })
+  }, [id])
 
   useEffect(() => {
     if (!id) return
@@ -854,6 +1099,15 @@ export default function AdminDossierPage() {
             {/* Colonne admin (1/3) */}
             <div className="flex flex-col gap-4">
               <OperationalStatusCard dossier={dossier} documents={documents} />
+              <AdminActionsCard
+                requestId={id}
+                currentStatus={request.status}
+                hasAssignedAgencies={
+                  ((request.assignedAgencyIds ?? []).length > 0) ||
+                  !!request.assignedAgencyId
+                }
+                onActionDone={reload}
+              />
               <AdminNotesCard
                 requestId={id}
                 initialNote={request.adminNotes}

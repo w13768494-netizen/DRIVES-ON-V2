@@ -6,6 +6,7 @@ import {
   PlusCircle, Send, Eye, CheckCircle2, XCircle,
   ArrowRightLeft, CheckCheck, ThumbsDown, ArrowRight,
   Star, Archive, Lock, Users, Tag, CalendarPlus, CalendarCheck, BadgeCheck,
+  RefreshCw, Bell,
 } from 'lucide-react'
 import { TIMELINE_EVENT_LABELS } from '@/types/requestTimeline'
 import type { RequestTimelineEvent, TimelineEventType } from '@/types/requestTimeline'
@@ -28,8 +29,10 @@ const TIMELINE_ICONS: Record<TimelineEventType, React.ReactNode> = {
   cloture:               <Archive        className="w-4 h-4" />,
   prolongation_demandee: <CalendarPlus   className="w-4 h-4" />,
   prolongation_reponse:  <CalendarPlus   className="w-4 h-4" />,
-  retour_confirme:       <CalendarCheck  className="w-4 h-4" />,
-  paiement_valide:       <BadgeCheck     className="w-4 h-4" />,
+  retour_confirme:           <CalendarCheck  className="w-4 h-4" />,
+  paiement_valide:           <BadgeCheck     className="w-4 h-4" />,
+  admin_changement_statut:   <RefreshCw      className="w-4 h-4" />,
+  admin_relance:             <Bell           className="w-4 h-4" />,
 }
 
 const TIMELINE_COLORS: Record<TimelineEventType, string> = {
@@ -50,8 +53,10 @@ const TIMELINE_COLORS: Record<TimelineEventType, string> = {
   cloture:               'bg-slate-100   text-slate-500  border-slate-200',
   prolongation_demandee: 'bg-orange-100  text-orange-600 border-orange-200',
   prolongation_reponse:  'bg-orange-100  text-orange-600 border-orange-200',
-  retour_confirme:       'bg-blue-100    text-blue-600   border-blue-200',
-  paiement_valide:       'bg-green-100   text-green-700  border-green-200',
+  retour_confirme:           'bg-blue-100    text-blue-600   border-blue-200',
+  paiement_valide:           'bg-green-100   text-green-700  border-green-200',
+  admin_changement_statut:   'bg-violet-100  text-violet-600 border-violet-200',
+  admin_relance:             'bg-violet-100  text-violet-600 border-violet-200',
 }
 
 interface Props {
@@ -107,6 +112,7 @@ export function RequestTimeline({ events }: Props) {
                 }`}>
                   {evt.byRole === 'assisteur' ? 'Assisteur'
                    : evt.byRole === 'loueur'  ? 'Loueur'
+                   : evt.byRole === 'admin'   ? 'Équipe DRIVES ON'
                    :                           'Système'}
                 </span>
               </div>
