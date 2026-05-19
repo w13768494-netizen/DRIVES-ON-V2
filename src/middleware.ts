@@ -29,8 +29,14 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const path = request.nextUrl.pathname
-  const match = ROUTE_ROLES.find(([prefix]) => path.startsWith(prefix))
+  const path    = request.nextUrl.pathname
+  const isApi   = path.startsWith('/api/')
+  const match   = ROUTE_ROLES.find(([prefix]) => path.startsWith(prefix))
+    ?? ROUTE_ROLES.find(([prefix]) => path.startsWith(`/api${prefix}`))
+
+  // Pour les routes API : le token est déjà rafraîchi ci-dessus — l'auth réelle
+  // est vérifiée par requireAdmin() dans chaque handler. On retourne juste la response.
+  if (isApi) return response
 
   if (match) {
     if (!user) {
@@ -56,5 +62,13 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/loueur/:path*', '/assisteur/:path*', '/admin/:path*'],
+  matcher: [
+    '/loueur/:path*',
+    '/assisteur/:path*',
+    '/admin/:path*',
+    '/api/admin/:path*',
+    '/api/loueur/:path*',
+    '/api/assisteur/:path*',
+    '/api/requests/:path*',
+  ],
 }
