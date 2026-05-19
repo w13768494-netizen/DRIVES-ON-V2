@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   MapPin, Users, ChevronDown, ChevronRight,
   Car, Loader2, CheckCircle2, AlertCircle,
-  Building2, Check, X, ExternalLink,
+  Building2, Check, X, ExternalLink, RefreshCw,
 } from 'lucide-react'
 import { getAllDeploymentCities, updateDeploymentCityStatus } from '@/services/deploymentService'
 import { VEHICLE_CATEGORY_LABELS, VEHICLE_CATEGORY_GROUPS } from '@/types/vehicleCategory'
@@ -49,11 +49,13 @@ function getActions(status: DeploymentStatus): StatusAction[] {
 // ── Composant principal ───────────────────────────────────────────────────────
 
 export default function DeploiementPage() {
-  const [cities,      setCities]      = useState<DeploymentCity[]>([])
-  const [loading,     setLoading]     = useState(true)
-  const [updating,    setUpdating]    = useState<string | null>(null)
-  const [openRegions, setOpenRegions] = useState<Set<string>>(new Set())
-  const [openCities,  setOpenCities]  = useState<Set<string>>(new Set())
+  const [cities,        setCities]        = useState<DeploymentCity[]>([])
+  const [loading,       setLoading]       = useState(true)
+  const [updating,      setUpdating]      = useState<string | null>(null)
+  const [openRegions,   setOpenRegions]   = useState<Set<string>>(new Set())
+  const [openCities,    setOpenCities]    = useState<Set<string>>(new Set())
+  const [refreshing,    setRefreshing]    = useState(false)
+  const [refreshResult, setRefreshResult] = useState<{ updated: number; errors: string[] } | null>(null)
 
   const load = useCallback(async () => {
     const [cityData, agencyRes] = await Promise.all([
@@ -80,6 +82,20 @@ export default function DeploiementPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  async function handleRefreshScores() {
+    setRefreshing(true)
+    setRefreshResult(null)
+    try {
+      const res  = await fetch('/api/admin/agencies/refresh-scores', { method: 'POST' })
+      const body = await res.json() as { updated: number; errors: string[] }
+      setRefreshResult(body)
+    } catch {
+      setRefreshResult({ updated: 0, errors: ['Erreur réseau'] })
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   async function handleStatusChange(city: DeploymentCity, next: DeploymentStatus) {
     setUpdating(city.id)
@@ -131,10 +147,30 @@ export default function DeploiementPage() {
 
       {/* Header */}
       <div className="px-8 py-6 border-b border-slate-200 bg-white">
-        <h1 className="text-2xl font-black text-slate-900">Déploiement France</h1>
-        <p className="text-sm text-slate-500 mt-0.5">
-          Seules les villes <span className="font-semibold text-green-600">actives</span> participent au matching — cliquez sur une ville pour voir sa couverture
-        </p>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900">Déploiement France</h1>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Seules les villes <span className="font-semibold text-green-600">actives</span> participent au matching — cliquez sur une ville pour voir sa couverture
+            </p>
+          </div>
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            <button
+              onClick={handleRefreshScores}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold disabled:opacity-50 transition-colors"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Calcul en cours…' : 'Rafraîchir les scores'}
+            </button>
+            {refreshResult && (
+              <p className={`text-[11px] tabular-nums ${refreshResult.errors.length > 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                {refreshResult.updated} agence{refreshResult.updated > 1 ? 's' : ''} mise{refreshResult.updated > 1 ? 's' : ''} à jour
+                {refreshResult.errors.length > 0 && ` · ${refreshResult.errors.length} erreur${refreshResult.errors.length > 1 ? 's' : ''}`}
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
@@ -328,13 +364,33 @@ function CityDetailPanel({ city }: { city: DeploymentCity }) {
             <div className="space-y-2 mt-2">
               {agencies.map(a => (
                 <div key={a.id} className="bg-white border border-slate-200 rounded-xl px-3 py-2.5">
-                  <p className="text-sm font-semibold text-slate-800 truncate">{a.agency_name}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{a.agency_name}</p>
+                    {a.score_total != null
+                      ? <ScoreBadge score={a.score_total} />
+                      : <span className="text-[11px] text-slate-300 italic shrink-0">Non calculé</span>
+                    }
+                  </div>
                   <div className="flex items-center gap-3 mt-1">
                     {a.email && <p className="text-[11px] text-slate-400 truncate">{a.email}</p>}
                     {a.service_radius_km != null && (
                       <span className="text-[11px] text-slate-400 shrink-0 ml-auto tabular-nums">{a.service_radius_km} km</span>
                     )}
                   </div>
+                  {a.score_total != null && (
+                    <div className="mt-2 pt-2 border-t border-slate-100 space-y-1.5">
+                      <ScoreRow label="Réactivité"   value={a.score_reactivity}    max={40} color="bg-blue-400"  />
+                      <ScoreRow label="Taux réponse" value={a.score_response_rate} max={40} color="bg-brand-400" />
+                      <ScoreRow label="Fiabilité"    value={a.score_reliability}   max={20} color="bg-green-400" />
+                      {a.avg_response_min != null && (
+                        <p className="text-[10px] text-slate-400 tabular-nums pt-0.5">
+                          Délai moy. : <span className="font-semibold text-slate-600">{a.avg_response_min} min</span>
+                          {' · '}{a.total_received ?? 0} reçue{(a.total_received ?? 0) > 1 ? 's' : ''}
+                          {' · '}{a.total_confirmed ?? 0} confirmée{(a.total_confirmed ?? 0) > 1 ? 's' : ''}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -460,5 +516,39 @@ function CategoryBadge({ label, color }: { label: string; color: 'blue' | 'amber
     <span className={`px-2 py-0.5 rounded-full border text-[11px] font-medium ${cls}`}>
       {label}
     </span>
+  )
+}
+
+function ScoreBadge({ score }: { score: number }) {
+  const cls = score >= 80 ? 'bg-green-50 text-green-700 border-green-200'
+            : score >= 60 ? 'bg-amber-50 text-amber-700 border-amber-200'
+            :               'bg-red-50 text-red-600 border-red-200'
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-black tabular-nums shrink-0 ${cls}`}>
+      {score}/100
+    </span>
+  )
+}
+
+function ScoreBar({ value, max, color }: { value: number | null; max: number; color: string }) {
+  const pct = value != null ? Math.round(value / max * 100) : 0
+  return (
+    <div className="h-1 rounded-full bg-slate-100 overflow-hidden">
+      <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+    </div>
+  )
+}
+
+function ScoreRow({ label, value, max, color }: { label: string; value: number | null; max: number; color: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] text-slate-400 w-20 shrink-0">{label}</span>
+      <div className="flex-1">
+        <ScoreBar value={value} max={max} color={color} />
+      </div>
+      <span className="text-[10px] font-semibold text-slate-600 tabular-nums w-10 text-right">
+        {value ?? '—'}/{max}
+      </span>
+    </div>
   )
 }

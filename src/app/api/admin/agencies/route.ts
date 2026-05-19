@@ -3,16 +3,25 @@ import { supabaseAdmin }                  from '@/lib/supabase/admin'
 import { requireAdmin }                   from '@/lib/requireAdmin'
 
 export interface AdminAgency {
-  id:               string
-  agency_name:      string
-  contact_name:     string | null
-  email:            string | null
-  phone:            string | null
-  city:             string | null
-  is_available:     boolean
-  service_radius_km: number | null
-  categories:       { category: string; available: boolean }[]
-  services:         { type: string; available: boolean }[]
+  id:                  string
+  agency_name:         string
+  contact_name:        string | null
+  email:               string | null
+  phone:               string | null
+  city:                string | null
+  is_available:        boolean
+  service_radius_km:   number | null
+  categories:          { category: string; available: boolean }[]
+  services:            { type: string; available: boolean }[]
+  // Score qualité — null si jamais calculé
+  score_total:         number | null
+  score_reactivity:    number | null
+  score_response_rate: number | null
+  score_reliability:   number | null
+  total_received:      number | null
+  total_confirmed:     number | null
+  avg_response_min:    number | null
+  score_updated_at:    string | null
 }
 
 export async function GET(request: NextRequest) {
@@ -23,7 +32,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabaseAdmin
     .from('rental_agencies')
-    .select('id, agency_name, contact_name, email, phone, city, is_available, service_radius_km')
+    .select('id, agency_name, contact_name, email, phone, city, is_available, service_radius_km, score_total, score_reactivity, score_response_rate, score_reliability, total_received, total_confirmed, avg_response_min, score_updated_at')
     .eq('active', true)
     .order('agency_name')
 
