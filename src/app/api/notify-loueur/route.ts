@@ -57,8 +57,8 @@ export async function POST(req: NextRequest) {
         agency_id:  agencyId,
         user_id:    agencyRow.owner_id,
         type:       'new_request',
-        title:      `Nouvelle demande — ${address}`,
-        body:       `${vehicleLabel} · ${request.durationDays}j`,
+        title:      `Nouvelle demande pour ${agencyRow.agency_name}`,
+        body:       `${address} · ${vehicleLabel} · ${request.durationDays}j`,
         request_id: request.id,
       })
       if (notifErr) {

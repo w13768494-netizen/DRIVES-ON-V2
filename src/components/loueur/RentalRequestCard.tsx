@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { MapPin, Car, Calendar, Navigation, ChevronRight, ShieldCheck, ShieldAlert, Lock, Zap, CalendarClock } from 'lucide-react'
+import { MapPin, Car, Calendar, Navigation, ChevronRight, ShieldCheck, ShieldAlert, Lock, Zap, CalendarClock, Building2 } from 'lucide-react'
 import { DisplayStatusBadge } from '@/components/shared/DisplayStatusBadge'
 import { VEHICLE_CATEGORY_LABELS } from '@/types/vehicleCategory'
 import { calculatePricing, getEffectivePrice } from '@/lib/rentalPricing'
@@ -45,6 +45,10 @@ export function RentalRequestCard({ request }: Props) {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-xs text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
                 #{request.dossierNumber}
+              </span>
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-full border border-brand-100">
+                <Building2 className="w-3 h-3" aria-hidden="true" />
+                {request.agencyName}
               </span>
               {isLockedByOther && (
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">

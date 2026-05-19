@@ -27,4 +27,5 @@ export interface LoueurAction {
 export type ReceivedRequest = AssistanceRequest & {
   distanceKm: number
   agencyId:   string
+  agencyName: string
 }

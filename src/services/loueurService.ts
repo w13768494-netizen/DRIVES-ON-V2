@@ -44,7 +44,7 @@ function buildReceivedRequest(
           request.location.latitude, request.location.longitude,
         )
       : 0
-  return { ...request, distanceKm, agencyId: agencyKey(agency) }
+  return { ...request, distanceKm, agencyId: agencyKey(agency), agencyName: agency.agency_name }
 }
 
 function rowToRentalAgency(row: RentalAgencyRow): RentalAgency {
