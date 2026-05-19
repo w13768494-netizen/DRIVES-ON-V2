@@ -8,10 +8,8 @@ import {
 } from 'lucide-react'
 import { getAdminReservations }  from '@/services/adminReservationService'
 import { getAgencyConfigAlerts } from '@/services/adminAlertService'
-import { getCandidatures }       from '@/services/candidatureService'
 import { getDisplayStatus }      from '@/lib/displayStatus'
 import type { AdminReservation }  from '@/types/adminReservation'
-import type { Candidature }       from '@/types/candidature'
 import type { AdminAgency }       from '@/app/api/admin/agencies/route'
 import type { AdminUser }         from '@/types/adminUser'
 
@@ -19,16 +17,16 @@ export default function AdminPlatformPage() {
   const [requests,      setRequests]      = useState<AdminReservation[]>([])
   const [adminUsers,    setAdminUsers]    = useState<AdminUser[]>([])
   const [agencies,      setAgencies]      = useState<AdminAgency[]>([])
-  const [candidatures,  setCandidatures]  = useState<Candidature[]>([])
+  const [pendingCount,  setPendingCount]  = useState(0)
   const [agencyAlerts,  setAgencyAlerts]  = useState(0)
   const [loading,       setLoading]       = useState(true)
   const [refreshedAt,   setRefreshedAt]   = useState(new Date())
 
   async function load() {
     setLoading(true)
-    const [reqs, cands, agencyRes, usersRes, sysAlerts] = await Promise.all([
+    const [reqs, candsRes, agencyRes, usersRes, sysAlerts] = await Promise.all([
       getAdminReservations(),
-      getCandidatures(),
+      fetch('/api/admin/access-requests?status=pending').then(r => r.json()).catch(() => []),
       fetch('/api/admin/agencies').then(r => r.json()).catch(() => []) as Promise<AdminAgency[]>,
       fetch('/api/admin/users').then(r => r.json()).catch(() => [])    as Promise<AdminUser[]>,
       getAgencyConfigAlerts(),
@@ -36,7 +34,7 @@ export default function AdminPlatformPage() {
     setRequests(reqs)
     setAdminUsers(Array.isArray(usersRes) ? usersRes : [])
     setAgencies(agencyRes)
-    setCandidatures(cands)
+    setPendingCount(Array.isArray(candsRes) ? candsRes.length : 0)
     setAgencyAlerts(sysAlerts.length)
     setRefreshedAt(new Date())
     setLoading(false)
@@ -69,7 +67,7 @@ export default function AdminPlatformPage() {
   const assisteurs      = adminUsers.filter(u => u.role === 'assisteur')
   const activeUsers     = assisteurs.filter(u => u.is_active).length
   const activeLoueurs   = agencies.filter(a => a.is_available).length
-  const pendingCands    = candidatures.filter(c => c.status === 'en_attente').length
+  const pendingCands    = pendingCount
 
   const recent = [...requests]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
