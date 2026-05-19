@@ -111,8 +111,10 @@ export default function DemandeDetailPage({
 
   const hasCoverageDoc         = docs.some(d => d.type === 'prise_en_charge' && d.owner === 'assisteur')
   const loueurDocs             = docs.filter(d => d.owner === 'loueur')
-  // etat_depart / etat_retour requis seulement si dégât signalé — toujours optionnels ici
-  const requiredLoueurDocTypes = ['contrat', 'facture'] as const
+  // etat_depart / etat_retour requis uniquement si sinistre déclaré par le loueur
+  const requiredLoueurDocTypes = request.hasDamageClaim
+    ? (['contrat', 'facture', 'etat_depart', 'etat_retour'] as const)
+    : (['contrat', 'facture'] as const)
   const missingDocs            = requiredLoueurDocTypes.filter(t => !loueurDocs.some(d => d.type === t))
   const paymentValidated       = request.paymentStatus === 'paye' || request.paymentStatus === 'non_applicable'
   const canClose               = request.status === 'honoree'
@@ -247,6 +249,7 @@ export default function DemandeDetailPage({
         <ClosureReadinessCard
           missingDocs={missingDocs}
           paymentStatus={request.paymentStatus}
+          hasDamageClaim={!!request.hasDamageClaim}
         />
       )}
 
@@ -945,13 +948,19 @@ function PageSkeleton() {
 function ClosureReadinessCard({
   missingDocs,
   paymentStatus,
+  hasDamageClaim,
 }: {
-  missingDocs:   string[]
-  paymentStatus: string | undefined
+  missingDocs:    string[]
+  paymentStatus:  string | undefined
+  hasDamageClaim: boolean
 }) {
-  const docsOk      = missingDocs.length === 0
-  const paymentOk   = paymentStatus === 'paye' || paymentStatus === 'non_applicable'
-  const allReady    = docsOk && paymentOk
+  const docsOk    = missingDocs.length === 0
+  const paymentOk = paymentStatus === 'paye' || paymentStatus === 'non_applicable'
+  const allReady  = docsOk && paymentOk
+
+  const requiredDocTypes = hasDamageClaim
+    ? (['contrat', 'facture', 'etat_depart', 'etat_retour'] as const)
+    : (['contrat', 'facture'] as const)
 
   return (
     <div className={`rounded-2xl border-2 overflow-hidden ${allReady ? 'border-green-300' : 'border-blue-300'}`}>
@@ -960,13 +969,18 @@ function ClosureReadinessCard({
         <div className={`flex items-center gap-2 font-semibold ${allReady ? 'text-green-700' : 'text-blue-700'}`}>
           <CheckCircle2 className="w-5 h-5 shrink-0" />
           Conditions de clôture
+          {hasDamageClaim && (
+            <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
+              Sinistre déclaré
+            </span>
+          )}
         </div>
 
         {/* Checklist documents loueur */}
         <div className="space-y-2">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Documents requis du loueur</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {(['contrat', 'facture'] as const).map(type => {
+            {requiredDocTypes.map(type => {
               const present = !missingDocs.includes(type)
               return (
                 <div key={type} className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium ${

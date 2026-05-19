@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft, CheckCircle2, XCircle, FileText, History, ArrowRightLeft, Lock, Loader2,
-  CalendarCheck, Clock, Ban,
+  CalendarCheck, Clock, Ban, AlertTriangle, ShieldAlert,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -146,9 +146,12 @@ export default function LoueurRequestDetailPage() {
   const [loading, setLoading]           = useState(true)
   const [notFound, setNotFound]         = useState(false)
 const [extLoading, setExtLoading]     = useState(false)
-  const [returnDate, setReturnDate]     = useState(todayStr)
-  const [returnTime, setReturnTime]     = useState(nowTimeStr)
+  const [returnDate, setReturnDate]       = useState(todayStr)
+  const [returnTime, setReturnTime]       = useState(nowTimeStr)
   const [returnLoading, setReturnLoading] = useState(false)
+  const [damageDesc, setDamageDesc]       = useState('')
+  const [damageLoading, setDamageLoading] = useState(false)
+  const [damageError, setDamageError]     = useState<string | null>(null)
 
   useEffect(() => {
     getReceivedRequestById(id).then(found => {
@@ -172,7 +175,7 @@ const [extLoading, setExtLoading]     = useState(false)
     setExtLoading(false)
   }, [request])
 
-const handleConfirmReturn = useCallback(async () => {
+  const handleConfirmReturn = useCallback(async () => {
     if (!request) return
     setReturnLoading(true)
     const returnedAt = new Date(`${returnDate}T${returnTime}`)
@@ -180,6 +183,28 @@ const handleConfirmReturn = useCallback(async () => {
     if (updated) setRequest(r => r ? { ...r, ...updated } : r)
     setReturnLoading(false)
   }, [request, returnDate, returnTime])
+
+  const handleDeclareDamage = useCallback(async () => {
+    if (!request) return
+    setDamageLoading(true)
+    setDamageError(null)
+    try {
+      const res = await fetch(`/api/loueur/requests/${request.id}/declare-damage`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ description: damageDesc }),
+      })
+      if (!res.ok) {
+        const body = await res.json() as { error?: string }
+        throw new Error(body.error ?? 'Erreur lors de la déclaration')
+      }
+      setRequest(r => r ? { ...r, hasDamageClaim: true } : r)
+    } catch (err) {
+      setDamageError(err instanceof Error ? err.message : 'Erreur inconnue')
+    } finally {
+      setDamageLoading(false)
+    }
+  }, [request, damageDesc])
 
   if (loading) {
     return (
@@ -352,6 +377,18 @@ const handleConfirmReturn = useCallback(async () => {
         />
       )}
 
+      {/* Déclaration de sinistre */}
+      {request.status === 'honoree' && (
+        <DamageClaimSection
+          hasDamageClaim={!!request.hasDamageClaim}
+          description={damageDesc}
+          onDescriptionChange={setDamageDesc}
+          onDeclare={handleDeclareDamage}
+          loading={damageLoading}
+          error={damageError}
+        />
+      )}
+
       <div className="flex flex-col lg:flex-row gap-5 items-start">
         <div className="flex-1 min-w-0">
           <RentalRequestDetail request={request} />
@@ -390,6 +427,75 @@ const handleConfirmReturn = useCallback(async () => {
           <RequestTimeline events={request.timeline} />
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Déclaration de sinistre ───────────────────────────────────────────────────
+
+function DamageClaimSection({
+  hasDamageClaim, description, onDescriptionChange, onDeclare, loading, error,
+}: {
+  hasDamageClaim:      boolean
+  description:         string
+  onDescriptionChange: (v: string) => void
+  onDeclare:           () => void
+  loading:             boolean
+  error:               string | null
+}) {
+  if (hasDamageClaim) {
+    return (
+      <div className="flex overflow-hidden rounded-2xl border-2 border-red-300 bg-red-50">
+        <div className="w-1 shrink-0 bg-red-500" />
+        <div className="flex items-start gap-3 p-4">
+          <ShieldAlert className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-red-800">Sinistre déclaré</p>
+            <p className="text-xs text-red-700 mt-0.5">
+              Déposez les documents requis dans la section ci-dessous : état des lieux départ, état des lieux retour, et photos des dégâts.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex overflow-hidden rounded-2xl border-2 border-amber-300 bg-amber-50">
+      <div className="w-1 shrink-0 bg-amber-500" />
+      <div className="flex-1 p-5 space-y-4">
+        <div className="flex items-center gap-2 text-amber-800 font-semibold">
+          <AlertTriangle className="w-5 h-5 shrink-0" />
+          Signaler un dégât sur le véhicule
+        </div>
+        <p className="text-sm text-amber-800/80">
+          Si le véhicule a subi des dégâts pendant la location, déclarez le sinistre ci-dessous.
+          Vous devrez ensuite déposer : <strong>état des lieux départ</strong>, <strong>état des lieux retour</strong> et <strong>photos des dégâts</strong>.
+        </p>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-amber-800 uppercase tracking-wide">
+            Description des dégâts (optionnel)
+          </label>
+          <textarea
+            value={description}
+            onChange={e => onDescriptionChange(e.target.value)}
+            rows={3}
+            placeholder="Ex : rayure profonde aile avant droite, pare-chocs enfoncé…"
+            className="w-full px-3 py-2 rounded-xl border border-amber-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+          />
+        </div>
+        {error && <p className="text-xs text-red-500">{error}</p>}
+        <button
+          onClick={onDeclare}
+          disabled={loading}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-60 transition-colors shadow-sm"
+        >
+          {loading
+            ? <><Loader2 className="w-4 h-4 animate-spin" />Déclaration en cours…</>
+            : <><ShieldAlert className="w-4 h-4" />Déclarer le sinistre</>
+          }
+        </button>
+      </div>
     </div>
   )
 }

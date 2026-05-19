@@ -342,6 +342,16 @@ function LoueurCard({ dossier }: { dossier: AdminDossierData }) {
             </span>
           </InfoRow>
         )}
+        <InfoRow label="Sinistre véhicule">
+          {request.hasDamageClaim ? (
+            <span className="flex items-center gap-1.5 text-red-600 font-semibold">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              Sinistre déclaré par le loueur
+            </span>
+          ) : (
+            <span className="text-slate-400">Aucun dégât signalé</span>
+          )}
+        </InfoRow>
       </dl>
     </SectionCard>
   )

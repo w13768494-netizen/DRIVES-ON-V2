@@ -67,13 +67,16 @@ export interface RequestFinanceData {
   paymentValidatedByName: string | null
 }
 
-// Documents requis par statut — règle métier centralisée ici
+// Documents requis par statut — base sans sinistre
+// etat_depart / etat_retour s'ajoutent dynamiquement si has_damage_claim = true
 export const REQUIRED_DOCS_BY_STATUS: Partial<Record<RequestStatus, RequestDocumentType[]>> = {
   acceptee:  ['prise_en_charge'],
   confirmee: ['prise_en_charge', 'contrat'],
-  honoree:   ['prise_en_charge', 'contrat', 'etat_retour', 'facture'],
-  cloturee:  ['prise_en_charge', 'contrat', 'etat_retour', 'facture'],
+  honoree:   ['prise_en_charge', 'contrat', 'facture'],
+  cloturee:  ['prise_en_charge', 'contrat', 'facture'],
 }
+
+export const REQUIRED_DOCS_DAMAGE: RequestDocumentType[] = ['etat_depart', 'etat_retour']
 
 export const MISSING_DOC_SHORT_LABELS: Record<RequestDocumentType, string> = {
   prise_en_charge: 'PC',
@@ -81,6 +84,7 @@ export const MISSING_DOC_SHORT_LABELS: Record<RequestDocumentType, string> = {
   etat_depart:     'EdL↑',
   etat_retour:     'EdL↓',
   facture:         'Fct',
+  photo_degat:     'Photo',
   autre:           'Autre',
 }
 

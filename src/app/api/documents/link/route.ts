@@ -7,7 +7,7 @@ import type { RequestDocumentType, RequestDocumentOwner } from '@/types/requestD
 
 const ALLOWED_TYPES_BY_OWNER: Record<RequestDocumentOwner, RequestDocumentType[]> = {
   assisteur: ['prise_en_charge', 'autre'],
-  loueur:    ['contrat', 'etat_depart', 'etat_retour', 'facture', 'autre'],
+  loueur:    ['contrat', 'etat_depart', 'etat_retour', 'facture', 'photo_degat', 'autre'],
 }
 
 // POST /api/documents/link

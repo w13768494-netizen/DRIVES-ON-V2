@@ -22,7 +22,7 @@ const MAX_SIZE_BYTES = 10 * 1024 * 1024 // 10 Mo
 
 const ALLOWED_TYPES_BY_OWNER: Record<RequestDocumentOwner, RequestDocumentType[]> = {
   assisteur: ['prise_en_charge', 'autre'],
-  loueur:    ['contrat', 'etat_depart', 'etat_retour', 'facture', 'autre'],
+  loueur:    ['contrat', 'etat_depart', 'etat_retour', 'facture', 'photo_degat', 'autre'],
 }
 
 // ── Magic bytes ───────────────────────────────────────────────────────────────

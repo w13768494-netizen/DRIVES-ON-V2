@@ -63,6 +63,7 @@ interface DbRow {
   admin_updated_at:       string | null
   admin_updated_by:       string | null
   payment_status:         string | null
+  has_damage_claim:       boolean | null
 }
 
 // ── Mapping helpers ───────────────────────────────────────────────────────────
@@ -112,7 +113,8 @@ function rowToRequest(row: DbRow): AssistanceRequest {
     adminFlags:           row.admin_flags     ?? [],
     adminUpdatedAt:       row.admin_updated_at ? new Date(row.admin_updated_at) : undefined,
     adminUpdatedBy:       row.admin_updated_by ?? undefined,
-    paymentStatus:        row.payment_status  ?? undefined,
+    paymentStatus:        row.payment_status   ?? undefined,
+    hasDamageClaim:       row.has_damage_claim ?? false,
   }
 }
 

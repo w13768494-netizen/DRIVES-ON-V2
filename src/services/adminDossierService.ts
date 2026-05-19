@@ -6,7 +6,7 @@ import type {
   AdminUxStatus, AdminUrgencyLevel, AdminPaymentStatus,
   RequestFinanceData,
 } from '@/types/adminReservation'
-import { REQUIRED_DOCS_BY_STATUS } from '@/types/adminReservation'
+import { REQUIRED_DOCS_BY_STATUS, REQUIRED_DOCS_DAMAGE } from '@/types/adminReservation'
 import type { RequestDocumentType } from '@/types/requestDocument'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -158,7 +158,10 @@ export async function getAdminDossier(id: string): Promise<AdminDossierData | nu
   const minutesSinceLastActivity = Math.floor((Date.now() - lastActivityAt.getTime()) / 60000)
 
   const missingDocTypes = (presentTypes: RequestDocumentType[]) => {
-    const required = REQUIRED_DOCS_BY_STATUS[request.status] ?? []
+    const base     = REQUIRED_DOCS_BY_STATUS[request.status] ?? []
+    const required = request.hasDamageClaim
+      ? [...base, ...REQUIRED_DOCS_DAMAGE]
+      : base
     const presentSet = new Set(presentTypes)
     return required.filter(r => !presentSet.has(r))
   }

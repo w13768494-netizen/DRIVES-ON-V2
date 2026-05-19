@@ -18,6 +18,7 @@ export type TimelineEventType =
   | 'prolongation_reponse'
   | 'retour_confirme'
   | 'paiement_valide'
+  | 'sinistre_declare'
   | 'admin_changement_statut'
   | 'admin_relance'
   | 'admin_finance'
@@ -42,6 +43,7 @@ export const TIMELINE_EVENT_LABELS: Record<TimelineEventType, string> = {
   prolongation_reponse:  'Réponse à la prolongation',
   retour_confirme:           'Retour du véhicule confirmé par le loueur',
   paiement_valide:           'Paiement validé par l\'assisteur',
+  sinistre_declare:          'Sinistre déclaré par le loueur',
   admin_changement_statut:   'Statut modifié par l\'administration',
   admin_relance:             'Partenaire relancé par l\'administration',
   admin_finance:             'Mise à jour financière',
@@ -67,6 +69,7 @@ export const TIMELINE_EVENT_COLORS: Record<TimelineEventType, string> = {
   prolongation_reponse:  'bg-orange-100  text-orange-700',
   retour_confirme:           'bg-blue-100    text-blue-700',
   paiement_valide:           'bg-green-100   text-green-700',
+  sinistre_declare:          'bg-red-100     text-red-700',
   admin_changement_statut:   'bg-violet-100  text-violet-700',
   admin_relance:             'bg-violet-100  text-violet-700',
   admin_finance:             'bg-emerald-100 text-emerald-700',
