@@ -120,9 +120,9 @@ function computeScoreFromRow(
   radiusKm:   number,
 ): ScoreBreakdown {
   const distanceScore   = Math.round(Math.max(0, 40 * (1 - distanceKm / radiusKm)))
-  const available       = avc.available && avc.stock_estimate > 0
-  const s               = avc.stock_estimate
-  const stockScore      = !available ? 0 : s >= 5 ? 30 : s >= 3 ? 22 : s >= 1 ? 12 : 0
+  const effectiveStock  = avc.stock_live ?? avc.stock_estimate
+  const available       = avc.available && (avc.actif ?? true) && effectiveStock > 0
+  const stockScore      = !available ? 0 : effectiveStock >= 5 ? 30 : effectiveStock >= 3 ? 22 : effectiveStock >= 1 ? 12 : 0
   const categoryScore   = 20
   const reactivityScore = 5
   return {
@@ -218,13 +218,14 @@ async function getMatchingResultsSupabase(params: MatchingParams): Promise<Match
     if (distanceKm > radiusKm) continue
 
     for (const avc of variants) {
-      if (!avc.available || avc.stock_estimate <= 0) continue
+      const effectiveStock = avc.stock_live ?? avc.stock_estimate
+      if (!avc.available || (avc.actif === false) || effectiveStock <= 0) continue
 
       const company = agencyToCompany(agency, avc)
       results.push({
         company:          { ...company, distanceKm },
         distanceKm,
-        stockEstimate:    avc.stock_estimate,
+        stockEstimate:    effectiveStock,
         available:        true,
         score:            computeScoreFromRow(avc, distanceKm, radiusKm),
         isRecommended:    false,

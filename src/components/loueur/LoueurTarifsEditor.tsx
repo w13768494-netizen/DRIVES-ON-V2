@@ -33,6 +33,7 @@ type Draft = {
   includedKmPerDay: string
   extraKmPrice:     string
   actif:            boolean
+  stockLive:        string  // "" = null (fallback stock_estimate), "0" = indisponible
 }
 
 const EMPTY: Draft = {
@@ -40,6 +41,7 @@ const EMPTY: Draft = {
   tarif1_4: '', tarif5_7: '', tarif8_14: '',
   tarif15_21: '', tarif22_29: '', forfait30Jours: '',
   includedKmPerDay: '', extraKmPrice: '', actif: true,
+  stockLive: '',
 }
 
 const FUEL_OPTIONS = [
@@ -72,6 +74,7 @@ function rowToDraft(row: AgencyVehicleCategoryRow): Draft {
     includedKmPerDay: s(row.included_km_per_day || null),
     extraKmPrice:     s(row.extra_km_price || null),
     actif:            row.actif ?? true,
+    stockLive:        row.stock_live != null ? String(row.stock_live) : '',
   }
 }
 
@@ -93,6 +96,7 @@ function draftToInput(draft: Draft, cat: VehicleCategoryType): LoueurTarifInput 
     included_km_per_day: n(draft.includedKmPerDay) ?? 0,
     extra_km_price:      n(draft.extraKmPrice)      ?? 0,
     actif:               draft.actif,
+    stock_live:          n(draft.stockLive),  // null si vide (= fallback stock_estimate)
   }
 }
 
@@ -306,6 +310,27 @@ function VariantRow({
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">€/km</span>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Stock disponible aujourd'hui */}
+          <div className="rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-3">
+            <p className={`${labelCls} text-amber-700`}>Stock disponible aujourd'hui</p>
+            <div className="flex items-center gap-3">
+              <div className="relative w-32">
+                <input
+                  type="number" min={0} step={1}
+                  value={draft.stockLive}
+                  onChange={e => onChange({ stockLive: e.target.value })}
+                  placeholder="—"
+                  className={`${inputCls} pr-14`}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">véh.</span>
+              </div>
+              <p className="text-[11px] text-amber-700/70 leading-tight">
+                Laisser vide pour utiliser le stock estimé.
+                <br />Mettre <strong>0</strong> pour masquer cette variante du matching.
+              </p>
             </div>
           </div>
 

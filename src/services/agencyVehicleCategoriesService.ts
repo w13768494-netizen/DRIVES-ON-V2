@@ -25,6 +25,7 @@ export interface AgencyVehicleCategoryRow {
   actif?:              boolean
   fuel_type?:          string | null
   transmission?:       string | null
+  stock_live?:         number | null
 }
 
 export type AgencyVehicleCategoryInput = {
@@ -56,6 +57,7 @@ export interface LoueurTarifInput {
   actif:                boolean
   fuel_type?:           string | null
   transmission?:        string | null
+  stock_live?:          number | null
 }
 
 export async function getAgencyVehicleCategories(agencyId: string): Promise<AgencyVehicleCategoryRow[]> {
@@ -96,7 +98,7 @@ export async function saveLoueurTarifs(
   input: LoueurTarifInput,
 ): Promise<AgencyVehicleCategoryRow | null> {
   const supabase = createClient()
-  const patch = {
+  const patch: Record<string, unknown> = {
     modele_equivalent:   input.modele_equivalent   ?? null,
     fuel_type:           input.fuel_type           ?? null,
     transmission:        input.transmission        ?? null,
@@ -110,6 +112,8 @@ export async function saveLoueurTarifs(
     extra_km_price:      input.extra_km_price      ?? 0,
     actif:               input.actif,
   }
+  // stock_live uniquement si explicitement fourni (undefined = ne pas toucher)
+  if ('stock_live' in input) patch.stock_live = input.stock_live ?? null
 
   if (input.id) {
     // Row exists — UPDATE only tarif fields, sans toucher daily_rate / packages / stock
