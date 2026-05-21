@@ -3,12 +3,13 @@
 import Link            from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { DrivesOnLogo } from '@/components/shared/DrivesOnLogo'
-import { Users, MapPin, CalendarClock, UserPlus, BarChart2, LogOut, Zap } from 'lucide-react'
+import { Users, MapPin, CalendarClock, UserPlus, BarChart2, CreditCard, LogOut, Zap } from 'lucide-react'
 import { signOut }     from '@/services/authService'
 
 const NAV = [
   { href: '/admin/operations',                icon: Zap,           label: 'Opérations',          exact: false, critical: true },
   { href: '/admin/reservations',              icon: CalendarClock, label: 'Réservations',        exact: false },
+  { href: '/admin/finance',                   icon: CreditCard,    label: 'Finance',             exact: false },
   { href: '/admin/demandes-acces',            icon: UserPlus,      label: 'Demandes d\'accès',   exact: false },
   { href: '/admin/utilisateurs',              icon: Users,         label: 'Utilisateurs',        exact: false },
   { href: '/admin/deploiement',               icon: MapPin,        label: 'Déploiement',         exact: true  },
