@@ -373,7 +373,7 @@ function FinanceRow({
       <td className="px-4 py-3">
         <div className="flex items-center justify-end gap-2 whitespace-nowrap">
           <Link
-            href={`/admin/reservations/${row.id}`}
+            href={`/admin/demandes/${row.id}`}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
             title="Ouvrir dossier complet"
           >
@@ -382,7 +382,7 @@ function FinanceRow({
 
           {needsRecalc && (
             <Link
-              href={`/admin/reservations/${row.id}`}
+              href={`/admin/demandes/${row.id}`}
               className="px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
               title="Recalcul requis depuis le dossier"
             >
@@ -501,7 +501,7 @@ function ConfirmModal({
             <p className="text-xs font-semibold text-red-700 mb-1">Action refusée</p>
             <p className="text-xs text-red-600">{modal.error}</p>
             <Link
-              href={`/admin/reservations/${row.id}`}
+              href={`/admin/demandes/${row.id}`}
               className="inline-flex items-center gap-1 text-xs font-medium text-red-700 mt-2 hover:underline"
             >
               <ExternalLink className="w-3 h-3" />
