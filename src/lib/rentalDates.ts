@@ -14,6 +14,8 @@ export function getExtensionDeadline(request: AssistanceRequest): Date {
 export type RentalAlertState = 'none' | 'extension_urgent' | 'overdue'
 
 export function getRentalAlertState(request: AssistanceRequest): RentalAlertState {
+  // Statut overdue persisté en DB — source de vérité absolue
+  if (request.status === 'overdue') return 'overdue'
   if (request.status !== 'confirmee') return 'none'
   const now = new Date()
   const endDate = getEndDate(request)

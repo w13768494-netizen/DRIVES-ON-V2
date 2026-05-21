@@ -4,18 +4,27 @@ import { requireAdmin }                   from '@/lib/requireAdmin'
 import { randomUUID }                     from 'crypto'
 import type { RequestStatus }             from '@/types/request'
 
-// Whitelist stricte — 5 transitions sûres uniquement
+// Whitelist stricte des transitions admin autorisées
 type Transition = { from: RequestStatus; to: RequestStatus; label: string }
 const WHITELIST: Transition[] = [
-  { from: 'envoyee',          to: 'recue',    label: 'Notification manquée — marquée reçue manuellement' },
-  { from: 'recue',            to: 'envoyee',  label: 'Réception incorrecte — retour envoyée' },
-  { from: 'transfert_valide', to: 'envoyee',  label: 'Déblocage transfert bloqué — retour envoyée' },
-  { from: 'transfert_valide', to: 'recue',    label: 'Déblocage transfert bloqué — retour reçue' },
-  { from: 'honoree',          to: 'cloturee', label: 'Clôture manuelle — paiement validé hors système' },
+  // ── Corrections flux normal ──────────────────────────────────────────────
+  { from: 'envoyee',          to: 'recue',     label: 'Notification manquée — marquée reçue manuellement' },
+  { from: 'recue',            to: 'envoyee',   label: 'Réception incorrecte — retour envoyée' },
+  { from: 'transfert_valide', to: 'envoyee',   label: 'Déblocage transfert bloqué — retour envoyée' },
+  { from: 'transfert_valide', to: 'recue',     label: 'Déblocage transfert bloqué — retour reçue' },
+  { from: 'honoree',          to: 'cloturee',  label: 'Clôture manuelle — paiement validé hors système' },
+  // ── Résolution overdue ───────────────────────────────────────────────────
+  { from: 'overdue',          to: 'confirmee', label: 'Résolution overdue — prolongation rétroactive accordée par admin' },
+  { from: 'overdue',          to: 'honoree',   label: 'Retour véhicule déclaré manuellement sur dossier overdue' },
+  // ── Résolution litige dégât ──────────────────────────────────────────────
+  { from: 'litige_degat',     to: 'honoree',   label: 'Litige dégât résolu — dossier remis en honorée' },
 ]
 
-// Statuts explicitement refusés en destination
-const FORBIDDEN_TO: RequestStatus[] = ['brouillon', 'refusee', 'confirmee', 'honoree', 'acceptee', 'transfert_propose', 'transferee']
+// Statuts explicitement refusés en destination (transitions réservées au flux métier)
+const FORBIDDEN_TO: RequestStatus[] = [
+  'brouillon', 'refusee', 'acceptee', 'transfert_propose', 'transferee',
+  // confirmee, honoree, overdue, litige_degat : accessibles via whitelist uniquement
+]
 const FORBIDDEN_FROM: RequestStatus[] = ['cloturee', 'refusee']
 
 type PostBody = {
@@ -81,9 +90,16 @@ export async function POST(
 
   // ── Read-modify-write : status + timeline en un seul UPDATE ──────────────────
   const now = new Date().toISOString()
+  // Utiliser le type d'événement sémantique pour les résolutions métier clés
+  const eventType =
+    fromStatus === 'litige_degat' && toStatus === 'honoree'   ? 'litige_resolu'
+    : fromStatus === 'overdue'    && toStatus === 'confirmee'  ? 'admin_changement_statut'
+    : fromStatus === 'overdue'    && toStatus === 'honoree'    ? 'retour_confirme'
+    : 'admin_changement_statut'
+
   const newEvent = {
     id:      randomUUID(),
-    type:    'admin_changement_statut',
+    type:    eventType,
     at:      now,
     byRole:  'admin',
     message: message?.trim() || transition.label,

@@ -15,6 +15,8 @@ export type RequestStatus =
   | 'transfert_valide'
   | 'transferee'
   | 'confirmee'
+  | 'overdue'
+  | 'litige_degat'
   | 'honoree'
   | 'cloturee'
 
@@ -35,6 +37,8 @@ export const REQUEST_STATUS_LABELS: Record<RequestStatus, string> = {
   transfert_valide:  'Transfert validé',
   transferee:        'Transférée',
   confirmee:         'Confirmée',
+  overdue:           'Overdue',
+  litige_degat:      'Litige dégât',
   honoree:           'Honorée',
   cloturee:          'Clôturée',
 }
@@ -49,6 +53,8 @@ export const LOUEUR_STATUS_LABELS: Record<RequestStatus, string> = {
   transfert_valide:  'Transfert validé',
   transferee:        'Transférée',
   confirmee:         'Confirmée',
+  overdue:           'Retard — action requise',
+  litige_degat:      'Sinistre déclaré',
   honoree:           'Honorée',
   cloturee:          'Clôturée',
 }
@@ -63,6 +69,8 @@ export const REQUEST_STATUS_COLORS: Record<RequestStatus, string> = {
   transfert_valide:  'bg-orange-100 text-orange-700',
   transferee:        'bg-blue-100   text-blue-700',
   confirmee:         'bg-green-100  text-green-700',
+  overdue:           'bg-red-600    text-white',
+  litige_degat:      'bg-red-100    text-red-800',
   honoree:           'bg-emerald-100 text-emerald-700',
   cloturee:          'bg-slate-100  text-slate-500',
 }
@@ -167,6 +175,8 @@ export interface AssistanceRequest extends RequestFormInput {
   adminUpdatedBy?:       string
   paymentStatus?:        string
   hasDamageClaim?:       boolean
+  overdueAt?:            Date
+  damageDescription?:    string
 }
 
 export function getEffectiveDuration(request: AssistanceRequest): number {

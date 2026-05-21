@@ -29,7 +29,7 @@ export async function POST(
   // Vérifier que la demande existe et est en statut honoree
   const { data: ar, error: arErr } = await supabaseAdmin
     .from('assistance_requests')
-    .select('id, status, assigned_agency_id, assigned_agency_ids, has_damage_claim')
+    .select('id, status, assigned_agency_id, assigned_agency_ids, has_damage_claim, created_by_user_id, dossier_number')
     .eq('id', requestId)
     .single()
 
@@ -81,13 +81,63 @@ export async function POST(
   const { error: updateErr } = await supabaseAdmin
     .from('assistance_requests')
     .update({
-      has_damage_claim: true,
-      timeline:         [...existingTimeline, newEvent],
+      status:             'litige_degat',   // Statut persisté — bloque la clôture
+      has_damage_claim:   true,
+      damage_description: description || null,
+      timeline:           [...existingTimeline, newEvent],
     })
     .eq('id', requestId)
 
   if (updateErr) {
     return NextResponse.json({ error: updateErr.message }, { status: 500 })
+  }
+
+  // Notifier l'admin et le partenaire
+  type ArRow = {
+    status: string
+    assigned_agency_id: string | null
+    assigned_agency_ids: string[] | null
+    has_damage_claim: boolean
+    created_by_user_id: string | null
+    dossier_number: string
+  }
+  const arTyped = ar as unknown as ArRow
+
+  const notifInserts: Array<Record<string, unknown>> = []
+
+  // Notifier le partenaire
+  if (arTyped.created_by_user_id) {
+    notifInserts.push({
+      agency_id:  null,
+      user_id:    arTyped.created_by_user_id,
+      type:       'damage_claim',
+      title:      `Sinistre déclaré — dossier #${arTyped.dossier_number}`,
+      body:       description
+        ? `Le loueur a déclaré un dégât : ${description.slice(0, 100)}`
+        : 'Le loueur a déclaré un dégât sur le véhicule. Consultez le dossier.',
+      request_id: requestId,
+    })
+  }
+
+  // Notifier tous les admins (best-effort via profils role=admin)
+  const { data: admins } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('role', 'admin')
+
+  for (const admin of admins ?? []) {
+    notifInserts.push({
+      agency_id:  null,
+      user_id:    admin.id,
+      type:       'damage_claim',
+      title:      `Sinistre déclaré — dossier #${arTyped.dossier_number}`,
+      body:       `Un loueur a déclaré un dégât. Le dossier est passé en litige_degat et nécessite une action admin.`,
+      request_id: requestId,
+    })
+  }
+
+  if (notifInserts.length > 0) {
+    await supabaseAdmin.from('notifications').insert(notifInserts)
   }
 
   return NextResponse.json({ success: true })
