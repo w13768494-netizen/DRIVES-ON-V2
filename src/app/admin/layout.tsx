@@ -3,7 +3,7 @@
 import Link            from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { DrivesOnLogo } from '@/components/shared/DrivesOnLogo'
-import { Users, MapPin, CalendarClock, UserPlus, BarChart2, CreditCard, LogOut, Zap } from 'lucide-react'
+import { Users, MapPin, CalendarClock, UserPlus, BarChart2, CreditCard, LogOut, Zap, Bell } from 'lucide-react'
 import { signOut }     from '@/services/authService'
 
 const NAV = [
@@ -14,6 +14,7 @@ const NAV = [
   { href: '/admin/utilisateurs',              icon: Users,         label: 'Utilisateurs',        exact: false },
   { href: '/admin/deploiement',               icon: MapPin,        label: 'Déploiement',         exact: true  },
   { href: '/admin/deploiement/national',      icon: BarChart2,     label: 'Analytics nationales', exact: false },
+  { href: '/admin/notifications',             icon: Bell,          label: 'Notifications',        exact: false },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

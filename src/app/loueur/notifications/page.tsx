@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Bell, CheckCheck, Loader2,
-  Zap, AlertTriangle, FileWarning, CalendarPlus, Car, FileText,
+  Zap, AlertTriangle, FileWarning, CalendarPlus, Car,
+  CheckCircle2, XCircle,
 } from 'lucide-react'
 import { getNotifications, markAsRead, markAllAsRead } from '@/services/notificationService'
 import { relativeTime } from '@/lib/operationalPriority'
@@ -65,7 +66,31 @@ function getNotifStyle(type: string, isUnread: boolean): NotifStyle {
       isUnread ? 'bg-blue-100' : 'bg-slate-100',
       '',
     )
-  // default / sinistre_declare / admin_*
+  if (type === 'document_valide')
+    return base(
+      <CheckCircle2 className={`w-4 h-4 ${isUnread ? 'text-green-600' : 'text-slate-400'}`} />,
+      isUnread ? 'bg-green-100' : 'bg-slate-100',
+      '',
+    )
+  if (type === 'document_refuse')
+    return base(
+      <XCircle className={`w-4 h-4 ${isUnread ? 'text-red-600' : 'text-slate-400'}`} />,
+      isUnread ? 'bg-red-100' : 'bg-slate-100',
+      '',
+    )
+  if (type === 'admin_relance')
+    return base(
+      <Bell className={`w-4 h-4 ${isUnread ? 'text-violet-600' : 'text-slate-400'}`} />,
+      isUnread ? 'bg-violet-100' : 'bg-slate-100',
+      '',
+    )
+  if (type === 'partenaire_relance')
+    return base(
+      <Bell className={`w-4 h-4 ${isUnread ? 'text-amber-600' : 'text-slate-400'}`} />,
+      isUnread ? 'bg-amber-100' : 'bg-slate-100',
+      '',
+    )
+  // default
   return base(
     <Bell className={`w-4 h-4 ${isUnread ? 'text-brand-600' : 'text-slate-400'}`} />,
     isUnread ? 'bg-brand-100' : 'bg-slate-100',

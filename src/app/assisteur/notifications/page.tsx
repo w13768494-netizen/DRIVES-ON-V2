@@ -54,6 +54,10 @@ function getNotifStyle(type: string, isUnread: boolean): NotifStyle {
     return s(<CalendarPlus  className={c('text-amber-600')} />,  isUnread ? 'bg-amber-100'  : 'bg-slate-100')
   if (type === 'admin_finance')
     return s(<CreditCard    className={c('text-violet-600')} />, isUnread ? 'bg-violet-100' : 'bg-slate-100')
+  if (type === 'document_valide')
+    return s(<CheckCircle2  className={c('text-green-600')} />,  isUnread ? 'bg-green-100'  : 'bg-slate-100')
+  if (type === 'document_refuse')
+    return s(<XCircle       className={c('text-red-600')} />,    isUnread ? 'bg-red-100'    : 'bg-slate-100')
   return s(<Bell            className={c('text-brand-600')} />,  isUnread ? 'bg-brand-100'  : 'bg-slate-100')
 }
 
