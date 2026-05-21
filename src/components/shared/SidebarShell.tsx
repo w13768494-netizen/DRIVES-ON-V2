@@ -12,6 +12,7 @@ import {
 import { getSession } from '@/services/currentSessionService'
 import { signOut }    from '@/services/authService'
 import { getUnreadCount } from '@/services/notificationService'
+import { NotificationPanel } from '@/components/shared/NotificationPanel'
 import { ASSISTANCE_USER_ROLE_LABELS, ASSISTANCE_USER_ROLE_COLORS } from '@/types/assistanceUser'
 import type { MockSession, AccountType } from '@/types/session'
 
@@ -80,6 +81,7 @@ export function SidebarShell({ role, children }: Props) {
   const [mobileOpen,   setMobileOpen]   = useState(false)
   const [session,      setSession]      = useState<MockSession | null>(null)
   const [unreadCount,  setUnreadCount]  = useState(0)
+  const [panelOpen,    setPanelOpen]    = useState(false)
   const pathname = usePathname()
   const router   = useRouter()
 
@@ -114,6 +116,14 @@ export function SidebarShell({ role, children }: Props) {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
+
+      {/* Panel notifications slide-in */}
+      <NotificationPanel
+        isOpen={panelOpen}
+        onClose={() => setPanelOpen(false)}
+        role={role}
+        onUnreadChange={setUnreadCount}
+      />
 
       {/* Mobile overlay */}
       {mobileOpen && (
@@ -191,6 +201,40 @@ export function SidebarShell({ role, children }: Props) {
             }
 
             const badgeCount = item.hasBadge ? unreadCount : 0
+            const isBell     = item.hasBadge
+
+            // La cloche ouvre le panel au lieu de naviguer
+            if (isBell) {
+              return (
+                <Tooltip key={item.href} label={item.label} show={collapsed}>
+                  <button
+                    onClick={() => { setMobileOpen(false); setPanelOpen(true) }}
+                    className={[
+                      'w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors',
+                      collapsed ? 'lg:justify-center lg:px-0' : '',
+                      panelOpen
+                        ? 'bg-brand-50 text-brand-700'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100',
+                    ].join(' ')}
+                  >
+                    <span className="relative shrink-0">
+                      {icon}
+                      {badgeCount > 0 && (
+                        <span className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 bg-brand-500 text-white text-[9px] font-black rounded-full leading-none">
+                          {badgeCount > 9 ? '9+' : badgeCount}
+                        </span>
+                      )}
+                    </span>
+                    <span className={collapsed ? 'lg:hidden' : ''}>{item.label}</span>
+                    {!collapsed && badgeCount > 0 && (
+                      <span className="ml-auto bg-brand-100 text-brand-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center tabular-nums">
+                        {badgeCount > 99 ? '99+' : badgeCount}
+                      </span>
+                    )}
+                  </button>
+                </Tooltip>
+              )
+            }
 
             return (
               <Tooltip key={item.href} label={item.label} show={collapsed}>
@@ -211,23 +255,12 @@ export function SidebarShell({ role, children }: Props) {
                 >
                   <span className="relative shrink-0">
                     {icon}
-                    {/* Badge notification count */}
-                    {badgeCount > 0 && (
-                      <span className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 bg-brand-500 text-white text-[9px] font-black rounded-full leading-none">
-                        {badgeCount > 9 ? '9+' : badgeCount}
-                      </span>
-                    )}
                     {/* Point rouge animé pour les urgences opérationnelles */}
-                    {item.criticalDot && badgeCount === 0 && (
+                    {item.criticalDot && (
                       <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                     )}
                   </span>
                   <span className={collapsed ? 'lg:hidden' : ''}>{item.label}</span>
-                  {!collapsed && badgeCount > 0 && (
-                    <span className="ml-auto bg-brand-100 text-brand-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center tabular-nums">
-                      {badgeCount > 99 ? '99+' : badgeCount}
-                    </span>
-                  )}
                 </Link>
               </Tooltip>
             )
