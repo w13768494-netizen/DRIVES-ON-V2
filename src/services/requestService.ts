@@ -13,6 +13,7 @@ import type { RequestTransfer }     from '@/types/requestTransfer'
 import type { RequestTimelineEvent } from '@/types/requestTimeline'
 import type { ExtensionRequest }    from '@/types/requestExtension'
 import type { PricingOption }       from '@/lib/extensionPricing'
+import { getEndDate }               from '@/lib/rentalDates'
 import { getSession }               from './currentSessionService'
 
 // ── Feature flag ──────────────────────────────────────────────────────────────
@@ -64,6 +65,8 @@ interface DbRow {
   admin_updated_by:       string | null
   payment_status:         string | null
   has_damage_claim:       boolean | null
+  overdue_at:             string | null
+  damage_description:     string | null
 }
 
 // ── Mapping helpers ───────────────────────────────────────────────────────────
@@ -115,6 +118,8 @@ function rowToRequest(row: DbRow): AssistanceRequest {
     adminUpdatedBy:       row.admin_updated_by ?? undefined,
     paymentStatus:        row.payment_status   ?? undefined,
     hasDamageClaim:       row.has_damage_claim ?? false,
+    overdueAt:            row.overdue_at       ? new Date(row.overdue_at) : undefined,
+    damageDescription:    row.damage_description ?? undefined,
   }
 }
 
@@ -573,8 +578,58 @@ export async function refuseTransfer(
   })
 }
 
+// ── Overdue ───────────────────────────────────────────────────────────────────
+
+/**
+ * Transite un dossier confirmee → overdue.
+ * Appelé par le cron /api/cron/check-overdue et en garde dans requestExtension.
+ * Idempotent : si déjà overdue, no-op.
+ */
+export async function markAsOverdue(
+  requestId: string,
+  reason    = 'Détection automatique — date de retour dépassée',
+): Promise<AssistanceRequest | null> {
+  const request = await getRequestById(requestId)
+  if (!request) return null
+  if (request.status === 'overdue') return request            // déjà overdue
+  if (request.status !== 'confirmee') return null             // transition invalide
+
+  const now = new Date()
+  const evt: RequestTimelineEvent = {
+    id:      generateEvtId(),
+    type:    'overdue_detecte',
+    at:      now,
+    byRole:  'system',
+    message: reason,
+  }
+  if (USE_SUPABASE) {
+    const { data, error } = await supabase
+      .from('assistance_requests')
+      .update({
+        status:     'overdue',
+        overdue_at: now.toISOString(),
+        timeline:   [...request.timeline, evt],
+      })
+      .eq('id', requestId)
+      .eq('status', 'confirmee')   // verrou optimiste — évite double-transition
+      .select()
+      .single()
+    if (!error && data) return rowToRequest(data as DbRow)
+    return null
+  }
+  return updateRequest(requestId, {
+    status:   'overdue' as RequestStatus,
+    overdueAt: now,
+    timeline: [...request.timeline, evt],
+  })
+}
+
 // ── Prolongations ─────────────────────────────────────────────────────────────
 
+/**
+ * Demande de prolongation par le partenaire.
+ * Bloquée si la date de fin est déjà dépassée — le dossier doit être traité en overdue.
+ */
 export async function requestExtension(
   requestId: string,
   days:      number,
@@ -583,6 +638,14 @@ export async function requestExtension(
 ): Promise<AssistanceRequest | null> {
   const request = await getRequestById(requestId)
   if (!request || request.status !== 'confirmee') return null
+
+  // Règle métier : prolongation impossible après la date de retour prévue
+  const endDate = getEndDate(request)
+  if (new Date() >= endDate) {
+    // Le dossier est en overdue — bloquer et déclencher la transition
+    await markAsOverdue(requestId, 'Tentative de prolongation hors délai — dossier overdue')
+    throw new Error('EXTENSION_OVERDUE: La date de retour prévue est dépassée. Ce dossier est maintenant en overdue.')
+  }
 
   const extension: ExtensionRequest = {
     id:            `ext-${Date.now()}`,
@@ -637,7 +700,8 @@ export async function confirmVehicleReturn(
   returnedAt: Date,
 ): Promise<AssistanceRequest | null> {
   const request = await getRequestById(requestId)
-  if (!request || request.status !== 'confirmee') return null
+  // Accepter depuis confirmee OU overdue — le véhicule peut revenir même en retard
+  if (!request || (request.status !== 'confirmee' && request.status !== 'overdue')) return null
 
   const evt: RequestTimelineEvent = {
     id: generateEvtId(), type: 'retour_confirme', at: new Date(), byRole: 'loueur',
@@ -650,11 +714,42 @@ export async function confirmVehicleReturn(
   })
 }
 
+/**
+ * Résolution overdue par le partenaire assisteur.
+ * Le véhicule est déclaré rendu : overdue → honoree.
+ * Justification obligatoire pour l'audit.
+ */
+export async function assisteurResolveOverdue(
+  requestId:     string,
+  returnedAt:    Date,
+  justification: string,
+): Promise<AssistanceRequest | null> {
+  const request = await getRequestById(requestId)
+  if (!request || request.status !== 'overdue') return null
+
+  const evt: RequestTimelineEvent = {
+    id:      generateEvtId(),
+    type:    'retour_confirme',
+    at:      new Date(),
+    byRole:  'assisteur',
+    message: justification.trim(),
+  }
+  return updateRequest(requestId, {
+    status:    'honoree' as RequestStatus,
+    returnedAt,
+    timeline:  [...request.timeline, evt],
+  })
+}
+
 export async function validatePayment(
   requestId: string,
 ): Promise<AssistanceRequest | null> {
   const request = await getRequestById(requestId)
   if (!request || request.status !== 'honoree') return null
+  // Bloquer si sinistre déclaré non résolu (sécurité supplémentaire au-delà du statut litige_degat)
+  if (request.hasDamageClaim) {
+    throw new Error('DAMAGE_CLAIM_PENDING: Un sinistre a été déclaré. Le litige doit être résolu par l\'administration avant la clôture.')
+  }
 
   const evt: RequestTimelineEvent = {
     id: generateEvtId(), type: 'paiement_valide', at: new Date(), byRole: 'assisteur',

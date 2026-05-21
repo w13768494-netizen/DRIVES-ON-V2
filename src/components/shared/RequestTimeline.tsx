@@ -6,7 +6,7 @@ import {
   PlusCircle, Send, Eye, CheckCircle2, XCircle,
   ArrowRightLeft, CheckCheck, ThumbsDown, ArrowRight,
   Star, Archive, Lock, Users, Tag, CalendarPlus, CalendarCheck, BadgeCheck,
-  RefreshCw, Bell, Banknote,
+  RefreshCw, Bell, Banknote, AlertTriangle, ShieldCheck,
 } from 'lucide-react'
 import { TIMELINE_EVENT_LABELS } from '@/types/requestTimeline'
 import type { RequestTimelineEvent, TimelineEventType } from '@/types/requestTimeline'
@@ -32,9 +32,12 @@ const TIMELINE_ICONS: Record<TimelineEventType, React.ReactNode> = {
   retour_confirme:           <CalendarCheck  className="w-4 h-4" />,
   paiement_valide:           <BadgeCheck     className="w-4 h-4" />,
   sinistre_declare:          <XCircle        className="w-4 h-4" />,
+  overdue_detecte:           <AlertTriangle  className="w-4 h-4" />,
+  litige_resolu:             <ShieldCheck    className="w-4 h-4" />,
   admin_changement_statut:   <RefreshCw      className="w-4 h-4" />,
   admin_relance:             <Bell           className="w-4 h-4" />,
   admin_finance:             <Banknote       className="w-4 h-4" />,
+  partenaire_relance:        <Bell           className="w-4 h-4" />,
 }
 
 const TIMELINE_COLORS: Record<TimelineEventType, string> = {
@@ -58,9 +61,12 @@ const TIMELINE_COLORS: Record<TimelineEventType, string> = {
   retour_confirme:           'bg-blue-100    text-blue-600   border-blue-200',
   paiement_valide:           'bg-green-100   text-green-700  border-green-200',
   sinistre_declare:          'bg-red-100     text-red-600    border-red-200',
+  overdue_detecte:           'bg-red-600     text-white      border-red-700',
+  litige_resolu:             'bg-emerald-100 text-emerald-700 border-emerald-200',
   admin_changement_statut:   'bg-violet-100  text-violet-600 border-violet-200',
   admin_relance:             'bg-violet-100  text-violet-600 border-violet-200',
   admin_finance:             'bg-emerald-100 text-emerald-600 border-emerald-200',
+  partenaire_relance:        'bg-amber-100   text-amber-600  border-amber-200',
 }
 
 interface Props {
