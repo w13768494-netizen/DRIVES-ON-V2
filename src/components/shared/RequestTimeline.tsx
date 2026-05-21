@@ -38,6 +38,8 @@ const TIMELINE_ICONS: Record<TimelineEventType, React.ReactNode> = {
   admin_relance:             <Bell           className="w-4 h-4" />,
   admin_finance:             <Banknote       className="w-4 h-4" />,
   partenaire_relance:        <Bell           className="w-4 h-4" />,
+  document_valide:           <CheckCircle2   className="w-4 h-4" />,
+  document_refuse:           <XCircle        className="w-4 h-4" />,
 }
 
 const TIMELINE_COLORS: Record<TimelineEventType, string> = {
@@ -67,6 +69,8 @@ const TIMELINE_COLORS: Record<TimelineEventType, string> = {
   admin_relance:             'bg-violet-100  text-violet-600 border-violet-200',
   admin_finance:             'bg-emerald-100 text-emerald-600 border-emerald-200',
   partenaire_relance:        'bg-amber-100   text-amber-600  border-amber-200',
+  document_valide:           'bg-green-100   text-green-600  border-green-200',
+  document_refuse:           'bg-red-100     text-red-600    border-red-200',
 }
 
 interface Props {

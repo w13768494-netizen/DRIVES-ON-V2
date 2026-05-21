@@ -48,6 +48,20 @@ export async function POST(
     return NextResponse.json({ error: 'Un sinistre a déjà été déclaré sur ce dossier.' }, { status: 409 })
   }
 
+  // Exiger au moins une photo_degat avant de déclarer le sinistre
+  const { count: photoCount } = await supabaseAdmin
+    .from('request_documents')
+    .select('id', { count: 'exact', head: true })
+    .eq('request_id', requestId)
+    .eq('type', 'photo_degat')
+
+  if (!photoCount || photoCount === 0) {
+    return NextResponse.json(
+      { error: 'Au moins une photo du dégât est requise avant de déclarer un sinistre. Uploadez une photo via l\'onglet Documents.' },
+      { status: 422 },
+    )
+  }
+
   // Vérifier que le loueur est bien assigné à cette demande
   const { data: agency } = await supabaseAdmin
     .from('rental_agencies')

@@ -23,16 +23,19 @@ export type AddDocumentByUrl = {
 
 function responseToDocument(r: DocumentApiResponse): RequestDocument {
   return {
-    id:        r.id,
-    requestId: r.requestId,
-    type:      r.type,
-    owner:     r.owner,
-    fileName:  r.fileName,
-    addedAt:   new Date(r.addedAt),
-    comment:   r.comment,
-    sizeKb:    r.sizeKb,
-    viewUrl:   r.viewUrl,
-    url:       r.url,
+    id:               r.id,
+    requestId:        r.requestId,
+    type:             r.type,
+    owner:            r.owner,
+    fileName:         r.fileName,
+    addedAt:          new Date(r.addedAt),
+    comment:          r.comment,
+    sizeKb:           r.sizeKb,
+    viewUrl:          r.viewUrl,
+    url:              r.url,
+    validationStatus: r.validationStatus,
+    validatedAt:      r.validatedAt ? new Date(r.validatedAt) : undefined,
+    validationNote:   r.validationNote,
   }
 }
 

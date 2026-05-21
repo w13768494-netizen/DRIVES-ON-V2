@@ -42,15 +42,34 @@ export const REQUEST_DOCUMENT_TYPE_COLORS: Record<RequestDocumentType, string> =
 export const ASSISTEUR_DOCUMENT_TYPES: RequestDocumentType[] = ['prise_en_charge', 'autre']
 export const LOUEUR_DOCUMENT_TYPES: RequestDocumentType[]    = ['contrat', 'etat_depart', 'etat_retour', 'facture', 'photo_degat', 'autre']
 
+// ── Validation documentaire (admin uniquement) ─────────────────────────────────
+
+export type DocumentValidationStatus = 'pending' | 'valid' | 'rejected'
+
+export const DOCUMENT_VALIDATION_LABELS: Record<DocumentValidationStatus, string> = {
+  pending:  'En attente',
+  valid:    'Validé',
+  rejected: 'Refusé',
+}
+
+export const DOCUMENT_VALIDATION_COLORS: Record<DocumentValidationStatus, string> = {
+  pending:  'bg-amber-50  text-amber-700  border-amber-200',
+  valid:    'bg-green-50  text-green-700  border-green-200',
+  rejected: 'bg-red-50    text-red-700    border-red-200',
+}
+
 export interface RequestDocument {
-  id:        string
-  requestId: string
-  type:      RequestDocumentType
-  owner:     RequestDocumentOwner
-  fileName:  string
-  addedAt:   Date
-  comment?:  string
-  sizeKb?:   number
-  viewUrl?:  string  // signed URL Supabase Storage ou URL externe
-  url?:      string  // URL externe uniquement — distingue l'icône Link vs Eye
+  id:               string
+  requestId:        string
+  type:             RequestDocumentType
+  owner:            RequestDocumentOwner
+  fileName:         string
+  addedAt:          Date
+  comment?:         string
+  sizeKb?:          number
+  viewUrl?:         string  // signed URL Supabase Storage ou URL externe
+  url?:             string  // URL externe uniquement — distingue l'icône Link vs Eye
+  validationStatus: DocumentValidationStatus
+  validatedAt?:     Date
+  validationNote?:  string
 }

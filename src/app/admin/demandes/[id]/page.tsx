@@ -21,9 +21,13 @@ import type { AlertSeverity }                             from '@/types/adminAle
 import {
   REQUEST_DOCUMENT_TYPE_LABELS,
   REQUEST_DOCUMENT_TYPE_COLORS,
+  DOCUMENT_VALIDATION_LABELS,
+  DOCUMENT_VALIDATION_COLORS,
+  type DocumentValidationStatus,
 } from '@/types/requestDocument'
 import {
   REQUIRED_DOCS_BY_STATUS,
+  REQUIRED_DOCS_DAMAGE,
   ADMIN_UX_STATUS_LABELS, ADMIN_UX_STATUS_COLORS,
   ADMIN_PAYMENT_LABELS,   ADMIN_PAYMENT_COLORS,
   type RequestFinanceData, type AdminPaymentStatus,
@@ -360,33 +364,108 @@ function LoueurCard({ dossier }: { dossier: AdminDossierData }) {
 // ── Bloc E — Documents ────────────────────────────────────────────────────────
 
 function DocumentsCard({
-  request, documents,
+  request, documents, reloadDocs,
 }: {
-  request:   AdminDossierData['request']
-  documents: RequestDocument[]
+  request:    AdminDossierData['request']
+  documents:  RequestDocument[]
+  reloadDocs: () => void
 }) {
-  const required    = REQUIRED_DOCS_BY_STATUS[request.status] ?? []
-  const presentSet  = new Set(documents.map(d => d.type))
-  const missingDocs = required.filter(t => !presentSet.has(t))
+  const [valModal, setValModal] = useState<{
+    docId:   string
+    docType: string
+    action:  'validate' | 'reject'
+    note:    string
+    error:   string | null
+  } | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  // ── Calcul liste requise (coverage-aware + damage) ─────────────────────────
+  const baseByStatus = REQUIRED_DOCS_BY_STATUS[request.status] ?? []
+  const base = request.coverage.creditType === 'client'
+    ? baseByStatus.filter(t => t !== 'prise_en_charge')
+    : baseByStatus
+  const withRetour: RequestDocumentType[] =
+    ['honoree', 'cloturee'].includes(request.status) && !base.includes('etat_retour')
+      ? [...base, 'etat_retour']
+      : base
+  const required: RequestDocumentType[] = request.hasDamageClaim
+    ? [...new Set([...withRetour, ...REQUIRED_DOCS_DAMAGE])]
+    : withRetour
+
+  // ── Statut par type de document ────────────────────────────────────────────
+  const docsByType = new Map<string, RequestDocument[]>()
+  for (const doc of documents) {
+    if (!docsByType.has(doc.type)) docsByType.set(doc.type, [])
+    docsByType.get(doc.type)!.push(doc)
+  }
+
+  function typeStatus(t: string): 'missing' | 'pending' | 'valid' | 'rejected' {
+    const ds = docsByType.get(t)
+    if (!ds || ds.length === 0) return 'missing'
+    if (ds.some(d => d.validationStatus === 'valid'))   return 'valid'
+    if (ds.some(d => d.validationStatus === 'pending')) return 'pending'
+    return 'rejected'
+  }
+
+  // ── Validation ─────────────────────────────────────────────────────────────
+  async function handleValidate() {
+    if (!valModal) return
+    if (valModal.action === 'reject' && valModal.note.trim().length < 10) {
+      setValModal(m => m ? { ...m, error: 'La note de refus doit faire au moins 10 caractères.' } : null)
+      return
+    }
+    setSaving(true)
+    setValModal(m => m ? { ...m, error: null } : null)
+
+    const res = await fetch(`/api/admin/documents/${valModal.docId}/validate`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ action: valModal.action, note: valModal.note.trim() || undefined }),
+    })
+
+    if (res.ok) {
+      setValModal(null)
+      reloadDocs()
+    } else {
+      const json = await res.json().catch(() => ({ error: 'Erreur inconnue' })) as { error?: string }
+      setValModal(m => m ? { ...m, error: json.error ?? 'Erreur' } : null)
+    }
+    setSaving(false)
+  }
+
+  const STATUS_CHECKLIST_STYLES: Record<string, string> = {
+    valid:    'bg-green-50  text-green-700',
+    pending:  'bg-amber-50  text-amber-700',
+    rejected: 'bg-red-50    text-red-600',
+    missing:  'bg-red-50    text-red-600',
+  }
+
+  const CHECKLIST_BADGE: Record<string, string> = {
+    valid:    'Validé',
+    pending:  'En attente',
+    rejected: 'Refusé',
+    missing:  'Manquant',
+  }
 
   return (
     <SectionCard title="Documents" icon={FileText}>
-      {/* Checklist requis */}
+
+      {/* Checklist requis (coverage-aware) */}
       {required.length > 0 && (
         <div className="mb-4">
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Requis pour ce statut</p>
           <div className="flex flex-col gap-1">
             {required.map(type => {
-              const present = presentSet.has(type)
+              const st = typeStatus(type)
               return (
-                <div key={type} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium ${
-                  present ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
-                }`}>
-                  {present
+                <div key={type} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium ${STATUS_CHECKLIST_STYLES[st]}`}>
+                  {st === 'valid'
                     ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                     : <XCircle      className="w-3.5 h-3.5 shrink-0" />}
                   {REQUEST_DOCUMENT_TYPE_LABELS[type]}
-                  {!present && <span className="ml-auto font-semibold text-[10px] uppercase tracking-wide">Manquant</span>}
+                  <span className="ml-auto font-semibold text-[10px] uppercase tracking-wide">
+                    {CHECKLIST_BADGE[st]}
+                  </span>
                 </div>
               )
             })}
@@ -394,34 +473,72 @@ function DocumentsCard({
         </div>
       )}
 
-      {/* Liste documents */}
+      {/* Liste complète des documents */}
       {documents.length === 0 ? (
         <p className="text-xs text-slate-400 italic">Aucun document déposé.</p>
       ) : (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           {documents.map(doc => {
             const colorCls = REQUEST_DOCUMENT_TYPE_COLORS[doc.type]
             const href     = doc.viewUrl ?? doc.url ?? null
+            const vs       = doc.validationStatus
+            const valColor = DOCUMENT_VALIDATION_COLORS[vs]
+
             return (
-              <div key={doc.id} className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl border text-xs ${colorCls}`}>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold truncate">{REQUEST_DOCUMENT_TYPE_LABELS[doc.type]}</p>
-                  <p className="opacity-60 truncate mt-0.5">
-                    {doc.url ? doc.url.slice(0, 50) + '…' : doc.fileName}
-                  </p>
-                  <p className="opacity-40 mt-0.5">
-                    {doc.owner === 'assisteur' ? 'Assisteur' : 'Loueur'}
-                    {' · '}
-                    {formatDateTime(doc.addedAt)}
-                  </p>
+              <div key={doc.id} className={`rounded-xl border text-xs overflow-hidden ${colorCls}`}>
+                {/* Ligne principale */}
+                <div className="flex items-start justify-between gap-2 px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold truncate">{REQUEST_DOCUMENT_TYPE_LABELS[doc.type]}</p>
+                    <p className="opacity-60 truncate mt-0.5">
+                      {doc.url ? doc.url.slice(0, 50) + '…' : doc.fileName}
+                    </p>
+                    <p className="opacity-40 mt-0.5">
+                      {doc.owner === 'assisteur' ? 'Assisteur' : 'Loueur'}
+                      {' · '}
+                      {formatDateTime(doc.addedAt)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Badge validation */}
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${valColor}`}>
+                      {DOCUMENT_VALIDATION_LABELS[vs]}
+                    </span>
+                    {/* Ouvrir */}
+                    {href ? (
+                      <a href={href} target="_blank" rel="noopener noreferrer"
+                         className="p-1.5 rounded-lg hover:bg-black/10 transition-colors">
+                        {doc.url ? <LinkIcon className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </a>
+                    ) : (
+                      <span className="p-1.5 opacity-30"><EyeOff className="w-3.5 h-3.5" /></span>
+                    )}
+                  </div>
                 </div>
-                {href ? (
-                  <a href={href} target="_blank" rel="noopener noreferrer"
-                     className="p-1.5 rounded-lg hover:bg-black/10 transition-colors shrink-0">
-                    {doc.url ? <LinkIcon className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  </a>
-                ) : (
-                  <span className="p-1.5 opacity-30"><EyeOff className="w-3.5 h-3.5" /></span>
+
+                {/* Note de refus */}
+                {vs === 'rejected' && doc.validationNote && (
+                  <div className="px-3 py-1.5 bg-red-50 border-t border-red-100 text-[11px] text-red-700">
+                    <span className="font-semibold">Motif : </span>{doc.validationNote}
+                  </div>
+                )}
+
+                {/* Actions admin (uniquement si pending) */}
+                {vs === 'pending' && (
+                  <div className="px-3 py-1.5 bg-white/60 border-t border-black/5 flex gap-2">
+                    <button
+                      onClick={() => setValModal({ docId: doc.id, docType: doc.type, action: 'validate', note: '', error: null })}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors"
+                    >
+                      <Check className="w-3 h-3" /> Valider
+                    </button>
+                    <button
+                      onClick={() => setValModal({ docId: doc.id, docType: doc.type, action: 'reject', note: '', error: null })}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                    >
+                      <XCircle className="w-3 h-3" /> Refuser
+                    </button>
+                  </div>
                 )}
               </div>
             )
@@ -429,11 +546,75 @@ function DocumentsCard({
         </div>
       )}
 
-      {missingDocs.length > 0 && (
-        <p className="mt-3 text-xs text-red-500 flex items-center gap-1.5">
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-          {missingDocs.length} document{missingDocs.length > 1 ? 's' : ''} manquant{missingDocs.length > 1 ? 's' : ''}
-        </p>
+      {/* Modal de validation */}
+      {valModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setValModal(null)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-5">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">
+                  {valModal.action === 'validate' ? 'Valider ce document' : 'Refuser ce document'}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {REQUEST_DOCUMENT_TYPE_LABELS[valModal.docType as RequestDocumentType] ?? valModal.docType}
+                </p>
+              </div>
+              <button onClick={() => setValModal(null)} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {valModal.action === 'validate' ? (
+              <p className="text-xs text-slate-600 mb-4">
+                Le document sera marqué « Validé ». Cette action est réversible — vous pourrez le refuser ultérieurement.
+              </p>
+            ) : (
+              <div className="mb-4">
+                <p className="text-xs text-slate-600 mb-2">
+                  Précisez le motif de refus. Le partenaire ou le loueur devra soumettre un nouveau document.
+                </p>
+                <textarea
+                  value={valModal.note}
+                  onChange={e => setValModal(m => m ? { ...m, note: e.target.value, error: null } : null)}
+                  placeholder="Motif de refus (min. 10 caractères)…"
+                  rows={3}
+                  className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-red-300"
+                />
+                <p className="text-[10px] text-slate-400 mt-1 text-right">
+                  {valModal.note.trim().length} / 10 min
+                </p>
+              </div>
+            )}
+
+            {valModal.error && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 mb-3">
+                {valModal.error}
+              </p>
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setValModal(null)}
+                disabled={saving}
+                className="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleValidate}
+                disabled={saving}
+                className={`px-3 py-1.5 rounded-xl text-xs font-medium text-white transition-colors disabled:opacity-50 ${
+                  valModal.action === 'validate'
+                    ? 'bg-green-600 hover:bg-green-700'
+                    : 'bg-red-600   hover:bg-red-700'
+                }`}
+              >
+                {saving ? 'En cours…' : valModal.action === 'validate' ? 'Valider' : 'Confirmer le refus'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </SectionCard>
   )
@@ -1385,7 +1566,7 @@ export default function AdminDossierPage() {
               <SinistreCard  dossier={dossier} />
               <MissionCard   dossier={dossier} />
               <LoueurCard    dossier={dossier} />
-              <DocumentsCard request={request} documents={documents} />
+              <DocumentsCard request={request} documents={documents} reloadDocs={reload} />
               <TimelineCard  dossier={dossier} />
             </div>
 

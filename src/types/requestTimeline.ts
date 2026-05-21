@@ -25,6 +25,8 @@ export type TimelineEventType =
   | 'admin_relance'
   | 'admin_finance'
   | 'partenaire_relance'
+  | 'document_valide'
+  | 'document_refuse'
 
 export const TIMELINE_EVENT_LABELS: Record<TimelineEventType, string> = {
   creation:           'Demande créée',
@@ -53,6 +55,8 @@ export const TIMELINE_EVENT_LABELS: Record<TimelineEventType, string> = {
   admin_relance:             'Partenaire relancé par l\'administration',
   admin_finance:             'Mise à jour financière',
   partenaire_relance:        'Loueur relancé par le partenaire',
+  document_valide:           'Document validé par l\'administration',
+  document_refuse:           'Document refusé par l\'administration',
 }
 
 export const TIMELINE_EVENT_COLORS: Record<TimelineEventType, string> = {
@@ -82,6 +86,8 @@ export const TIMELINE_EVENT_COLORS: Record<TimelineEventType, string> = {
   admin_relance:             'bg-violet-100  text-violet-700',
   admin_finance:             'bg-emerald-100 text-emerald-700',
   partenaire_relance:        'bg-amber-100   text-amber-700',
+  document_valide:           'bg-green-100   text-green-700',
+  document_refuse:           'bg-red-100     text-red-700',
 }
 
 export interface RequestTimelineEvent {

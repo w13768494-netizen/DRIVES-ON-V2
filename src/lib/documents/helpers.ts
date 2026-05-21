@@ -1,5 +1,5 @@
 import { supabaseAdmin }    from '@/lib/supabase/admin'
-import type { RequestDocumentType, RequestDocumentOwner } from '@/types/requestDocument'
+import type { RequestDocumentType, RequestDocumentOwner, DocumentValidationStatus } from '@/types/requestDocument'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -16,19 +16,26 @@ export interface DocumentRow {
   comment:             string | null
   uploaded_by_user_id: string | null
   created_at:          string | null
+  validation_status:   string | null
+  validated_at:        string | null
+  validated_by:        string | null
+  validation_note:     string | null
 }
 
 export interface DocumentApiResponse {
-  id:        string
-  requestId: string
-  type:      RequestDocumentType
-  owner:     RequestDocumentOwner
-  fileName:  string
-  addedAt:   string
-  comment?:  string
-  sizeKb?:   number
-  viewUrl?:  string  // signed URL (fichier Storage) ou URL externe
-  url?:      string  // URL externe uniquement — pour distinguer l'icône Link vs Eye
+  id:               string
+  requestId:        string
+  type:             RequestDocumentType
+  owner:            RequestDocumentOwner
+  fileName:         string
+  addedAt:          string
+  comment?:         string
+  sizeKb?:          number
+  viewUrl?:         string  // signed URL (fichier Storage) ou URL externe
+  url?:             string  // URL externe uniquement — pour distinguer l'icône Link vs Eye
+  validationStatus: DocumentValidationStatus
+  validatedAt?:     string
+  validationNote?:  string
 }
 
 interface RequestAccessRow {
@@ -40,17 +47,21 @@ interface RequestAccessRow {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 export function rowToResponse(row: DocumentRow, viewUrl?: string): DocumentApiResponse {
+  const vs = row.validation_status as DocumentValidationStatus | null
   return {
-    id:        row.id,
-    requestId: row.request_id,
-    type:      row.type      as RequestDocumentType,
-    owner:     row.owner     as RequestDocumentOwner,
-    fileName:  row.file_name,
-    addedAt:   row.created_at ?? new Date().toISOString(),
-    comment:   row.comment   ?? undefined,
-    sizeKb:    row.size_bytes != null ? Math.round(row.size_bytes / 1024) : undefined,
+    id:               row.id,
+    requestId:        row.request_id,
+    type:             row.type   as RequestDocumentType,
+    owner:            row.owner  as RequestDocumentOwner,
+    fileName:         row.file_name,
+    addedAt:          row.created_at ?? new Date().toISOString(),
+    comment:          row.comment   ?? undefined,
+    sizeKb:           row.size_bytes != null ? Math.round(row.size_bytes / 1024) : undefined,
     viewUrl,
-    url:       row.url       ?? undefined,
+    url:              row.url        ?? undefined,
+    validationStatus: vs === 'valid' || vs === 'rejected' ? vs : 'pending',
+    validatedAt:      row.validated_at  ?? undefined,
+    validationNote:   row.validation_note ?? undefined,
   }
 }
 

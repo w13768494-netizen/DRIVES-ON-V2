@@ -3,6 +3,8 @@ import { supabaseAdmin }                  from '@/lib/supabase/admin'
 import { requireAdmin }                   from '@/lib/requireAdmin'
 import { randomUUID }                     from 'crypto'
 import type { RequestStatus }             from '@/types/request'
+import { REQUEST_DOCUMENT_TYPE_LABELS }   from '@/types/requestDocument'
+import type { RequestDocumentType }       from '@/types/requestDocument'
 
 // Whitelist stricte des transitions admin autorisées
 type Transition = { from: RequestStatus; to: RequestStatus; label: string }
@@ -49,16 +51,18 @@ export async function POST(
   // ── Charger la demande ────────────────────────────────────────────────────────
   const { data: row, error: fetchError } = await supabaseAdmin
     .from('assistance_requests')
-    .select('id, status, timeline')
+    .select('id, status, timeline, coverage_type, has_damage_claim')
     .eq('id', requestId)
     .single()
 
   if (fetchError || !row)
     return NextResponse.json({ error: 'Dossier introuvable' }, { status: 404 })
 
-  const { status: fromStatus, timeline } = row as {
-    status:   RequestStatus
-    timeline: Array<Record<string, unknown>>
+  const { status: fromStatus, timeline, coverage_type, has_damage_claim } = row as {
+    status:           RequestStatus
+    timeline:         Array<Record<string, unknown>>
+    coverage_type:    string | null
+    has_damage_claim: boolean | null
   }
 
   // ── Refus explicites ──────────────────────────────────────────────────────────
@@ -87,6 +91,61 @@ export async function POST(
       { error: `Transition ${fromStatus} → ${toStatus} non autorisée` },
       { status: 422 },
     )
+
+  // ── Note obligatoire pour résolution de litige dégât ─────────────────────────
+  if (fromStatus === 'litige_degat' && toStatus === 'honoree') {
+    if (!message || message.trim().length < 10)
+      return NextResponse.json(
+        { error: 'Une note de résolution (minimum 10 caractères) est obligatoire pour résoudre un litige dégât.' },
+        { status: 422 },
+      )
+  }
+
+  // ── Guard documentaire : clôture conditionnelle ───────────────────────────────
+  if (fromStatus === 'honoree' && toStatus === 'cloturee') {
+    const { data: docs } = await supabaseAdmin
+      .from('request_documents')
+      .select('type, validation_status')
+      .eq('request_id', requestId)
+
+    // Types présents → compter valid, pending, rejected par type
+    const counts = new Map<string, { valid: number; pending: number; rejected: number }>()
+    for (const d of docs ?? []) {
+      const t = d.type as string
+      if (!counts.has(t)) counts.set(t, { valid: 0, pending: 0, rejected: 0 })
+      const c = counts.get(t)!
+      const vs = (d.validation_status as string) ?? 'pending'
+      if (vs === 'valid')    c.valid++
+      else if (vs === 'pending')  c.pending++
+      else if (vs === 'rejected') c.rejected++
+    }
+
+    // Construire la liste des types requis pour la clôture
+    const required: RequestDocumentType[] = [
+      ...(coverage_type !== 'none' ? ['prise_en_charge' as RequestDocumentType] : []),
+      'contrat',
+      'etat_retour',
+      'facture',
+      ...(has_damage_claim ? ['etat_depart' as RequestDocumentType] : []),
+    ]
+
+    for (const docType of required) {
+      const c = counts.get(docType)
+      if (!c) {
+        return NextResponse.json(
+          { error: `Document manquant : ${REQUEST_DOCUMENT_TYPE_LABELS[docType]}` },
+          { status: 422 },
+        )
+      }
+      // Bloquant uniquement si aucun valid ET aucun pending (tous rejected)
+      if (c.valid === 0 && c.pending === 0) {
+        return NextResponse.json(
+          { error: `Document refusé : ${REQUEST_DOCUMENT_TYPE_LABELS[docType]} — uploadez une nouvelle version pour débloquer la clôture` },
+          { status: 422 },
+        )
+      }
+    }
+  }
 
   // ── Read-modify-write : status + timeline en un seul UPDATE ──────────────────
   const now = new Date().toISOString()
