@@ -7,7 +7,7 @@ import { DrivesOnLogo } from '@/components/shared/DrivesOnLogo'
 import {
   ChevronLeft, ChevronRight, Menu,
   LayoutDashboard, Plus, Users, Building2,
-  LogOut, UserCircle2, Bell, Tag,
+  LogOut, UserCircle2, Bell, Tag, Zap,
 } from 'lucide-react'
 import { getSession } from '@/services/currentSessionService'
 import { signOut }    from '@/services/authService'
@@ -29,7 +29,7 @@ const ACCOUNT_TYPE_SIDEBAR_COLORS: Record<AccountType, string> = {
 
 // ── Nav items config ──────────────────────────────────────────────────────────
 
-type IconKey = 'dashboard' | 'plus' | 'users' | 'building' | 'bell' | 'tag'
+type IconKey = 'dashboard' | 'plus' | 'users' | 'building' | 'bell' | 'tag' | 'zap'
 
 const ICONS: Record<IconKey, React.ReactNode> = {
   dashboard: <LayoutDashboard className="w-5 h-5" />,
@@ -38,25 +38,29 @@ const ICONS: Record<IconKey, React.ReactNode> = {
   building:  <Building2       className="w-5 h-5" />,
   bell:      <Bell            className="w-5 h-5" />,
   tag:       <Tag             className="w-5 h-5" />,
+  zap:       <Zap             className="w-5 h-5" />,
 }
 
 interface NavItem {
-  href:       string
-  icon:       IconKey
-  label:      string
-  exact?:     boolean
-  cta?:       boolean
-  adminOnly?: boolean
-  hasBadge?:  boolean
+  href:          string
+  icon:          IconKey
+  label:         string
+  exact?:        boolean
+  cta?:          boolean
+  adminOnly?:    boolean
+  hasBadge?:     boolean
+  criticalDot?:  boolean   // point rouge animé indiquant des urgences opérationnelles
 }
 
 const NAV: Record<'assisteur' | 'loueur', NavItem[]> = {
   assisteur: [
+    { href: '/assisteur/operations',         icon: 'zap',       label: 'Opérations',      criticalDot: true },
     { href: '/assisteur',                    icon: 'dashboard', label: 'Tableau de bord', exact: true },
     { href: '/assisteur/nouvelle-demande',   icon: 'plus',      label: 'Nouvelle demande', cta: true  },
     { href: '/assisteur/notifications',      icon: 'bell',      label: 'Notifications',   hasBadge: true },
   ],
   loueur: [
+    { href: '/loueur/operations',     icon: 'zap',       label: 'Opérations',      criticalDot: true },
     { href: '/loueur/dashboard',      icon: 'dashboard', label: 'Tableau de bord', exact: true },
     { href: '/loueur/notifications',  icon: 'bell',      label: 'Notifications',   hasBadge: true },
     { href: '/loueur/profil',         icon: 'building',  label: 'Mon profil'                   },
@@ -197,16 +201,25 @@ export function SidebarShell({ role, children }: Props) {
                     'flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors',
                     collapsed ? 'lg:justify-center lg:px-0' : '',
                     active
-                      ? 'bg-brand-50 text-brand-700'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100',
+                      ? item.criticalDot
+                        ? 'bg-red-50 text-red-700'
+                        : 'bg-brand-50 text-brand-700'
+                      : item.criticalDot
+                        ? 'text-red-600 hover:text-red-700 hover:bg-red-50'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100',
                   ].join(' ')}
                 >
                   <span className="relative shrink-0">
                     {icon}
+                    {/* Badge notification count */}
                     {badgeCount > 0 && (
                       <span className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 bg-brand-500 text-white text-[9px] font-black rounded-full leading-none">
                         {badgeCount > 9 ? '9+' : badgeCount}
                       </span>
+                    )}
+                    {/* Point rouge animé pour les urgences opérationnelles */}
+                    {item.criticalDot && badgeCount === 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                     )}
                   </span>
                   <span className={collapsed ? 'lg:hidden' : ''}>{item.label}</span>

@@ -3,10 +3,11 @@
 import Link            from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { DrivesOnLogo } from '@/components/shared/DrivesOnLogo'
-import { Users, MapPin, CalendarClock, UserPlus, BarChart2, LogOut } from 'lucide-react'
+import { Users, MapPin, CalendarClock, UserPlus, BarChart2, LogOut, Zap } from 'lucide-react'
 import { signOut }     from '@/services/authService'
 
 const NAV = [
+  { href: '/admin/operations',                icon: Zap,           label: 'Opérations',          exact: false, critical: true },
   { href: '/admin/reservations',              icon: CalendarClock, label: 'Réservations',        exact: false },
   { href: '/admin/demandes-acces',            icon: UserPlus,      label: 'Demandes d\'accès',   exact: false },
   { href: '/admin/utilisateurs',              icon: Users,         label: 'Utilisateurs',        exact: false },
@@ -41,7 +42,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-0.5">
-          {NAV.map(({ href, icon: Icon, label, exact }) => {
+          {NAV.map(({ href, icon: Icon, label, exact, critical }) => {
             const active = exact ? pathname === href : pathname.startsWith(href)
             return (
               <Link
@@ -49,11 +50,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 href={href}
                 className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                   active
-                    ? 'bg-white/10 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    ? critical ? 'bg-red-500/20 text-red-300' : 'bg-white/10 text-white'
+                    : critical ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10' : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}
               >
-                <Icon className="w-4 h-4 shrink-0" />
+                <span className="relative shrink-0">
+                  <Icon className="w-4 h-4" />
+                  {critical && !active && (
+                    <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                  )}
+                </span>
                 {label}
               </Link>
             )
