@@ -3,7 +3,7 @@ import { DrivesOnLogo } from '@/components/shared/DrivesOnLogo'
 import {
   ArrowRight, ShieldCheck, Truck, Clock, FileCheck, Zap,
   Building2, Wrench, MapPin, CheckCircle2, ChevronRight,
-  Star, Users, BarChart2,
+  Users, BarChart2,
 } from 'lucide-react'
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -81,26 +81,6 @@ const FEATURES = [
   { icon: Users,       title: 'Multi-utilisateurs',            body: 'Gérez plusieurs agences ou collaborateurs depuis un seul compte.' },
 ]
 
-const TESTIMONIALS = [
-  {
-    quote: 'On a divisé par 4 le temps passé à trouver un loueur pour nos assurés. DRIVES ON est devenu indispensable.',
-    name:  'Marie L.',
-    role:  'Responsable sinistres — Compagnie d\'assistance régionale',
-    stars: 5,
-  },
-  {
-    quote: 'Avant, je perdais 20 minutes par dossier à appeler des loueurs. Maintenant, c\'est réglé en 90 secondes.',
-    name:  'Thomas R.',
-    role:  'Agent d\'assurance indépendant',
-    stars: 5,
-  },
-  {
-    quote: 'On reçoit 3× plus de demandes qualifiées qu\'avant. Et tout est géré depuis l\'appli, même les factures.',
-    name:  'Karim B.',
-    role:  'Gérant — Auto Remplacement 93',
-    stars: 5,
-  },
-]
 
 // ── Composants internes ───────────────────────────────────────────────────────
 
@@ -370,38 +350,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ══════════════════════════════════════════════════════════════════
-            TÉMOIGNAGES
-        ══════════════════════════════════════════════════════════════════ */}
-        <section className="w-full max-w-5xl mx-auto px-6 py-16 flex flex-col gap-8">
-          <div className="flex flex-col gap-2">
-            <SectionLabel>Témoignages</SectionLabel>
-            <h2 className="text-2xl sm:text-3xl font-black text-white text-center">
-              Ils nous font confiance
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {TESTIMONIALS.map(({ quote, name, role, stars }) => (
-              <div
-                key={name}
-                className="flex flex-col gap-4 p-6 rounded-2xl border border-slate-800 bg-slate-900/40"
-              >
-                <div className="flex gap-0.5">
-                  {[...Array(stars)].map((_, i) => (
-                    <Star key={i} className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                  ))}
-                </div>
-                <p className="text-sm text-slate-300 leading-relaxed flex-1">"{quote}"</p>
-                <div>
-                  <p className="text-xs font-bold text-slate-200">{name}</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">{role}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ══════════════════════════════════════════════════════════════════
+{/* ══════════════════════════════════════════════════════════════════
             CTA FINAL
         ══════════════════════════════════════════════════════════════════ */}
         <section className="w-full max-w-4xl mx-auto px-6 py-16 flex flex-col gap-10">
