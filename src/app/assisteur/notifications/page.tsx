@@ -2,19 +2,62 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, CheckCheck, CheckCircle2, XCircle, ArrowRightLeft, Loader2, Car, FileText } from 'lucide-react'
+import {
+  Bell, CheckCheck, Loader2,
+  CheckCircle2, XCircle, ArrowRightLeft, Car, FileText,
+  AlertTriangle, FileWarning, CalendarPlus, CreditCard,
+} from 'lucide-react'
 import { getNotifications, markAsRead, markAllAsRead } from '@/services/notificationService'
+import { relativeTime } from '@/lib/operationalPriority'
 import type { PlatformNotification } from '@/services/notificationService'
 
-function NotifIcon({ type, isUnread }: { type: string; isUnread: boolean }) {
-  const cls = `w-4 h-4 ${isUnread ? 'text-brand-600' : 'text-slate-400'}`
-  if (type === 'loueur_accepte')         return <CheckCircle2   className={cls} />
-  if (type === 'loueur_contre_propose')  return <ArrowRightLeft className={cls} />
-  if (type === 'loueur_refuse')          return <XCircle        className={cls} />
-  if (type === 'retour_confirme')        return <Car            className={cls} />
-  if (type === 'loueur_document_ajoute') return <FileText       className={cls} />
-  return <Bell className={cls} />
+// ── Type config ───────────────────────────────────────────────────────────────
+
+interface NotifStyle {
+  icon:       React.ReactNode
+  iconBg:     string
+  cardUnread: string
+  dot:        string
 }
+
+function getNotifStyle(type: string, isUnread: boolean): NotifStyle {
+  const isCritical = ['overdue', 'damage_claim'].includes(type)
+
+  function s(icon: React.ReactNode, iconBg: string): NotifStyle {
+    return {
+      icon,
+      iconBg,
+      cardUnread: isCritical
+        ? 'bg-red-50 border-red-200 hover:bg-red-100'
+        : 'bg-brand-50 border-brand-200 hover:bg-brand-100',
+      dot: isCritical ? 'bg-red-500' : 'bg-brand-500',
+    }
+  }
+
+  const c = (color: string) => `w-4 h-4 ${isUnread ? color : 'text-slate-400'}`
+
+  if (type === 'overdue')
+    return s(<AlertTriangle className={c('text-red-600')} />,    isUnread ? 'bg-red-100'    : 'bg-slate-100')
+  if (type === 'damage_claim')
+    return s(<FileWarning   className={c('text-orange-600')} />, isUnread ? 'bg-orange-100' : 'bg-slate-100')
+  if (type === 'loueur_accepte')
+    return s(<CheckCircle2  className={c('text-emerald-600')} />, isUnread ? 'bg-emerald-100' : 'bg-slate-100')
+  if (type === 'loueur_contre_propose')
+    return s(<ArrowRightLeft className={c('text-amber-600')} />,  isUnread ? 'bg-amber-100'  : 'bg-slate-100')
+  if (type === 'loueur_refuse')
+    return s(<XCircle       className={c('text-red-500')} />,    isUnread ? 'bg-red-50'     : 'bg-slate-100')
+  if (type === 'retour_confirme')
+    return s(<Car           className={c('text-blue-600')} />,   isUnread ? 'bg-blue-100'   : 'bg-slate-100')
+  if (type === 'loueur_document_ajoute')
+    return s(<FileText      className={c('text-brand-600')} />,  isUnread ? 'bg-brand-100'  : 'bg-slate-100')
+  if (type === 'prolongation_reponse')
+    return s(<CalendarPlus  className={c('text-amber-600')} />,  isUnread ? 'bg-amber-100'  : 'bg-slate-100')
+  if (type === 'admin_finance')
+    return s(<CreditCard    className={c('text-violet-600')} />, isUnread ? 'bg-violet-100' : 'bg-slate-100')
+  return s(<Bell            className={c('text-brand-600')} />,  isUnread ? 'bg-brand-100'  : 'bg-slate-100')
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AssisteurNotificationsPage() {
   const [notifs,  setNotifs]  = useState<PlatformNotification[]>([])
@@ -104,9 +147,7 @@ export default function AssisteurNotificationsPage() {
         <div className="flex flex-col gap-2">
           {notifs.map(notif => {
             const isUnread = !notif.read
-            const dateStr  = notif.createdAt.toLocaleDateString('fr-FR', {
-              day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-            })
+            const style    = getNotifStyle(notif.type, isUnread)
 
             return (
               <button
@@ -114,17 +155,12 @@ export default function AssisteurNotificationsPage() {
                 onClick={() => handleClick(notif)}
                 className={[
                   'w-full text-left flex items-start gap-3 p-4 rounded-2xl border transition-all',
-                  isUnread
-                    ? 'bg-brand-50 border-brand-200 hover:bg-brand-100'
-                    : 'bg-white border-slate-200 hover:bg-slate-50',
+                  isUnread ? style.cardUnread : 'bg-white border-slate-200 hover:bg-slate-50',
                 ].join(' ')}
               >
                 {/* Icône */}
-                <div className={[
-                  'w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
-                  isUnread ? 'bg-brand-100' : 'bg-slate-100',
-                ].join(' ')}>
-                  <NotifIcon type={notif.type} isUnread={isUnread} />
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${style.iconBg}`}>
+                  {style.icon}
                 </div>
 
                 {/* Contenu */}
@@ -132,13 +168,13 @@ export default function AssisteurNotificationsPage() {
                   <p className={`text-sm truncate ${isUnread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
                     {notif.title}
                   </p>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate">{notif.body}</p>
-                  <p className="text-[11px] text-slate-400 mt-1 tabular-nums">{dateStr}</p>
+                  <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{notif.body}</p>
+                  <p className="text-[11px] text-slate-400 mt-1">{relativeTime(notif.createdAt)}</p>
                 </div>
 
                 {/* Point non lu */}
                 {isUnread && (
-                  <span className="w-2 h-2 rounded-full bg-brand-500 shrink-0 mt-1.5" />
+                  <span className={`w-2 h-2 rounded-full ${style.dot} shrink-0 mt-1.5`} />
                 )}
               </button>
             )

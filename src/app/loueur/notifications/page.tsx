@@ -2,9 +2,78 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, CheckCheck, FileText, Loader2 } from 'lucide-react'
+import {
+  Bell, CheckCheck, Loader2,
+  Zap, AlertTriangle, FileWarning, CalendarPlus, Car, FileText,
+} from 'lucide-react'
 import { getNotifications, markAsRead, markAllAsRead } from '@/services/notificationService'
+import { relativeTime } from '@/lib/operationalPriority'
 import type { PlatformNotification } from '@/services/notificationService'
+
+// ── Type config ───────────────────────────────────────────────────────────────
+
+interface NotifStyle {
+  icon:        React.ReactNode
+  iconBg:      string
+  iconColor:   string
+  cardUnread:  string
+  cardRead:    string
+  dot:         string
+}
+
+function getNotifStyle(type: string, isUnread: boolean): NotifStyle {
+  const isCritical = ['overdue', 'damage_claim'].includes(type)
+
+  const base = (icon: React.ReactNode, iconBg: string, iconColor: string): NotifStyle => ({
+    icon,
+    iconBg,
+    iconColor,
+    cardUnread: isCritical
+      ? 'bg-red-50 border-red-200 hover:bg-red-100'
+      : 'bg-brand-50 border-brand-200 hover:bg-brand-100',
+    cardRead: 'bg-white border-slate-200 hover:bg-slate-50',
+    dot: isCritical ? 'bg-red-500' : 'bg-brand-500',
+  })
+
+  if (type === 'overdue')
+    return base(
+      <AlertTriangle className={`w-4 h-4 ${isUnread ? 'text-red-600' : 'text-slate-400'}`} />,
+      isUnread ? 'bg-red-100' : 'bg-slate-100',
+      '',
+    )
+  if (type === 'damage_claim')
+    return base(
+      <FileWarning className={`w-4 h-4 ${isUnread ? 'text-orange-600' : 'text-slate-400'}`} />,
+      isUnread ? 'bg-orange-100' : 'bg-slate-100',
+      '',
+    )
+  if (type === 'new_request')
+    return base(
+      <Zap className={`w-4 h-4 ${isUnread ? 'text-brand-600' : 'text-slate-400'}`} />,
+      isUnread ? 'bg-brand-100' : 'bg-slate-100',
+      '',
+    )
+  if (type === 'extension_demandee')
+    return base(
+      <CalendarPlus className={`w-4 h-4 ${isUnread ? 'text-amber-600' : 'text-slate-400'}`} />,
+      isUnread ? 'bg-amber-100' : 'bg-slate-100',
+      '',
+    )
+  if (type === 'retour_confirme')
+    return base(
+      <Car className={`w-4 h-4 ${isUnread ? 'text-blue-600' : 'text-slate-400'}`} />,
+      isUnread ? 'bg-blue-100' : 'bg-slate-100',
+      '',
+    )
+  // default / sinistre_declare / admin_*
+  return base(
+    <Bell className={`w-4 h-4 ${isUnread ? 'text-brand-600' : 'text-slate-400'}`} />,
+    isUnread ? 'bg-brand-100' : 'bg-slate-100',
+    '',
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function LoueurNotificationsPage() {
   const [notifs,   setNotifs]   = useState<PlatformNotification[]>([])
@@ -25,11 +94,8 @@ export default function LoueurNotificationsPage() {
   async function handleClick(notif: PlatformNotification) {
     if (!notif.read) {
       await markAsRead(notif.id)
-      setNotifs(prev => prev.map(n =>
-        n.id === notif.id ? { ...n, read: true } : n
-      ))
+      setNotifs(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n))
     }
-    // Naviguer vers la demande
     if (notif.requestId) {
       router.push(`/loueur/demandes/${notif.requestId}`)
     }
@@ -97,9 +163,7 @@ export default function LoueurNotificationsPage() {
         <div className="flex flex-col gap-2">
           {notifs.map(notif => {
             const isUnread = !notif.read
-            const dateStr  = notif.createdAt.toLocaleDateString('fr-FR', {
-              day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-            })
+            const style    = getNotifStyle(notif.type, isUnread)
 
             return (
               <button
@@ -107,17 +171,12 @@ export default function LoueurNotificationsPage() {
                 onClick={() => handleClick(notif)}
                 className={[
                   'w-full text-left flex items-start gap-3 p-4 rounded-2xl border transition-all',
-                  isUnread
-                    ? 'bg-brand-50 border-brand-200 hover:bg-brand-100'
-                    : 'bg-white border-slate-200 hover:bg-slate-50',
+                  isUnread ? style.cardUnread : style.cardRead,
                 ].join(' ')}
               >
                 {/* Icône */}
-                <div className={[
-                  'w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
-                  isUnread ? 'bg-brand-100' : 'bg-slate-100',
-                ].join(' ')}>
-                  <FileText className={`w-4 h-4 ${isUnread ? 'text-brand-600' : 'text-slate-400'}`} />
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${style.iconBg}`}>
+                  {style.icon}
                 </div>
 
                 {/* Contenu */}
@@ -125,13 +184,13 @@ export default function LoueurNotificationsPage() {
                   <p className={`text-sm truncate ${isUnread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
                     {notif.title}
                   </p>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate">{notif.body}</p>
-                  <p className="text-[11px] text-slate-400 mt-1 tabular-nums">{dateStr}</p>
+                  <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{notif.body}</p>
+                  <p className="text-[11px] text-slate-400 mt-1">{relativeTime(notif.createdAt)}</p>
                 </div>
 
                 {/* Point non lu */}
                 {isUnread && (
-                  <span className="w-2 h-2 rounded-full bg-brand-500 shrink-0 mt-1.5" />
+                  <span className={`w-2 h-2 rounded-full ${style.dot} shrink-0 mt-1.5`} />
                 )}
               </button>
             )
