@@ -636,7 +636,7 @@ function ProlongationsTab({ request, onExtensionResponse, extLoading }: {
 // ── Tab D — Finance ───────────────────────────────────────────────────────────
 
 function FinanceTab({ request }: { request: ReceivedRequest }) {
-  const effectivePrice = getEffectivePrice(request)
+  const effectivePrice = request.loueurResponse?.pricePerDay ?? getEffectivePrice(request)
   const effectiveDays  = getEffectiveDuration(request)
   const extensions     = (request.extensions ?? []).filter(e => e.status === 'acceptee')
 
