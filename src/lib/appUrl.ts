@@ -14,5 +14,5 @@ export function getAppUrl(): string {
     }
     return 'http://localhost:3000'
   }
-  return url.replace(/\/$/, '')
+  return url.trim().replace(/\/$/, '')
 }
