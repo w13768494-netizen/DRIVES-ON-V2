@@ -38,6 +38,8 @@ const RESPONDED_STATUSES = [
 
 type TabId = 'sinistre' | 'envoi' | 'prolongations' | 'finance' | 'documents' | 'retour' | 'historique'
 
+const VALID_TABS = new Set<string>(['sinistre', 'envoi', 'prolongations', 'finance', 'documents', 'retour', 'historique'])
+
 function getDefaultTab(req: ReceivedRequest): TabId {
   if (req.status === 'overdue' || req.status === 'honoree') return 'retour'
   if (req.extensions?.some(e => e.status === 'en_attente')) return 'prolongations'
@@ -157,10 +159,11 @@ export default function LoueurRequestDetailPage() {
   const [damageError,       setDamageError]       = useState<string | null>(null)
 
   useEffect(() => {
+    const tabParam = new URLSearchParams(window.location.search).get('tab')
     getReceivedRequestById(id).then(found => {
       if (found) {
         setRequest(found)
-        setActiveTab(getDefaultTab(found))
+        setActiveTab(tabParam && VALID_TABS.has(tabParam) ? tabParam as TabId : getDefaultTab(found))
         getAgencyById(found.agencyId).then(a => setAgency(a))
       } else {
         setNotFound(true)

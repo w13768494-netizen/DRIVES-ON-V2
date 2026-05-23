@@ -165,13 +165,22 @@ type ActionKind =
 
 // ── Kanban pipeline ───────────────────────────────────────────────────────────
 
-function PipelineMiniCard({ r }: { r: AssistanceRequest }) {
-  const vehicle = VEHICLE_CATEGORY_LABELS[r.vehicleCategory] ?? r.vehicleCategory
-  const overdue = getRentalAlertState(r) === 'overdue' || r.status === 'overdue'
+// Tab hint par colonne kanban assisteur
+const ASSISTEUR_COL_TAB_HINTS: Record<string, string> = {
+  retour:     'retour',
+  a_cloturer: 'finance',
+}
+
+function PipelineMiniCard({ r, tabHint }: { r: AssistanceRequest; tabHint?: string }) {
+  const vehicle    = VEHICLE_CATEGORY_LABELS[r.vehicleCategory] ?? r.vehicleCategory
+  const overdue    = getRentalAlertState(r) === 'overdue' || r.status === 'overdue'
+  const dossierHref = tabHint
+    ? `/assisteur/demandes/${r.id}?tab=${tabHint}`
+    : `/assisteur/demandes/${r.id}`
 
   return (
     <a
-      href={`/assisteur/demandes/${r.id}`}
+      href={dossierHref}
       className={`block rounded-xl border bg-white p-3 hover:shadow-md transition-shadow ${
         overdue ? 'border-red-200 bg-red-50/30' : 'border-slate-200'
       }`}
@@ -219,7 +228,7 @@ function KanbanPipeline({
 
               <div className="flex flex-col gap-2">
                 {cards.slice(0, 4).map(r => (
-                  <PipelineMiniCard key={r.id} r={r} />
+                  <PipelineMiniCard key={r.id} r={r} tabHint={ASSISTEUR_COL_TAB_HINTS[col.key]} />
                 ))}
                 {cards.length > 4 && (
                   <p className="text-xs text-slate-400 text-center py-1">
@@ -295,7 +304,7 @@ function ActionCenter({
                     Régulariser
                   </button>
                   <a
-                    href={`/assisteur/demandes/${r.id}`}
+                    href={`/assisteur/demandes/${r.id}?tab=retour`}
                     className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
@@ -322,7 +331,7 @@ function ActionCenter({
                   </div>
                 </div>
                 <a
-                  href={`/assisteur/demandes/${r.id}`}
+                  href={`/assisteur/demandes/${r.id}?tab=envoi`}
                   className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 transition-colors flex items-center gap-1"
                 >
                   Trouver un loueur
@@ -351,7 +360,7 @@ function ActionCenter({
                   </div>
                 </div>
                 <a
-                  href={`/assisteur/demandes/${r.id}`}
+                  href={`/assisteur/demandes/${r.id}?tab=historique`}
                   className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg bg-orange-100 hover:bg-orange-200 text-orange-700 transition-colors flex items-center gap-1"
                 >
                   Décider
@@ -380,7 +389,7 @@ function ActionCenter({
                   </div>
                 </div>
                 <a
-                  href={`/assisteur/demandes/${r.id}`}
+                  href={`/assisteur/demandes/${r.id}?tab=envoi`}
                   className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 transition-colors"
                 >
                   Relancer
@@ -408,7 +417,7 @@ function ActionCenter({
                   </div>
                 </div>
                 <a
-                  href={`/assisteur/demandes/${r.id}`}
+                  href={`/assisteur/demandes/${r.id}?tab=prolongations`}
                   className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 transition-colors"
                 >
                   Traiter

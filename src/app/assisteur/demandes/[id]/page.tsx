@@ -38,6 +38,8 @@ import type { RequestDocument } from '@/types/requestDocument'
 
 type TabId = 'sinistre' | 'envoi' | 'prolongations' | 'finance' | 'documents' | 'retour' | 'historique'
 
+const VALID_TABS = new Set<string>(['sinistre', 'envoi', 'prolongations', 'finance', 'documents', 'retour', 'historique'])
+
 function getDefaultTab(req: AssistanceRequest): TabId {
   if (req.status === 'overdue' || req.status === 'litige_degat') return 'retour'
   if (req.extensions?.some(e => e.status === 'en_attente')) return 'prolongations'
@@ -105,11 +107,12 @@ export default function DemandeDetailPage({
   const [activeTab,   setActiveTab]   = useState<TabId>('sinistre')
 
   useEffect(() => {
+    const tabParam = new URLSearchParams(window.location.search).get('tab')
     getRequestById(id).then(req => {
       setRequest(req)
       setLoading(false)
       if (req) {
-        setActiveTab(getDefaultTab(req))
+        setActiveTab(tabParam && VALID_TABS.has(tabParam) ? tabParam as TabId : getDefaultTab(req))
         if (req.loueurResponse?.agencyId) {
           getRentalAgencyById(req.loueurResponse.agencyId).then(setAgency)
         }

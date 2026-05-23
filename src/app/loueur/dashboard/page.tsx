@@ -135,6 +135,12 @@ type ActionItemKind =
 
 // ── Mini Kanban card ──────────────────────────────────────────────────────────
 
+// Tab hint par colonne kanban
+const KANBAN_TAB_HINTS: Record<string, string> = {
+  retours:    'retour',
+  a_cloturer: 'finance',
+}
+
 function KanbanCard({
   request,
   col,
@@ -144,10 +150,14 @@ function KanbanCard({
   col:      KanbanCol
   onAction: (r: ReceivedRequest, kind: 'repondre' | 'retour') => void
 }) {
-  const vehicle  = VEHICLE_CATEGORY_LABELS[request.vehicleCategory] ?? request.vehicleCategory
-  const endDate  = getEndDate(request)
-  const isReturn = col.key === 'retours'
-  const isNew    = col.key === 'nouvelles'
+  const vehicle   = VEHICLE_CATEGORY_LABELS[request.vehicleCategory] ?? request.vehicleCategory
+  const endDate   = getEndDate(request)
+  const isReturn  = col.key === 'retours'
+  const isNew     = col.key === 'nouvelles'
+  const tabHint   = KANBAN_TAB_HINTS[col.key]
+  const dossierHref = tabHint
+    ? `/loueur/demandes/${request.id}?tab=${tabHint}`
+    : `/loueur/demandes/${request.id}`
 
   return (
     <div className={`rounded-xl border border-slate-200 bg-white p-3 flex flex-col gap-2 shadow-sm hover:shadow-md transition-shadow`}>
@@ -159,7 +169,7 @@ function KanbanCard({
           </p>
         </div>
         <a
-          href={`/loueur/demandes/${request.id}`}
+          href={dossierHref}
           className="shrink-0 w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
         >
           <ExternalLink className="w-3 h-3" />
@@ -190,7 +200,7 @@ function KanbanCard({
 
       {col.key === 'a_cloturer' && (
         <a
-          href={`/loueur/demandes/${request.id}`}
+          href={`/loueur/demandes/${request.id}?tab=finance`}
           className="w-full py-1.5 rounded-lg text-xs font-bold text-center bg-violet-100 hover:bg-violet-200 text-violet-700 transition-colors"
         >
           Voir le dossier
@@ -533,7 +543,7 @@ function ActionCenter({
                     </button>
                   )}
                   <a
-                    href={`/loueur/demandes/${r.id}`}
+                    href={`/loueur/demandes/${r.id}?tab=retour`}
                     className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
@@ -583,7 +593,7 @@ function ActionCenter({
                   </div>
                 </div>
                 <a
-                  href={`/loueur/demandes/${r.id}`}
+                  href={`/loueur/demandes/${r.id}?tab=prolongations`}
                   className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
@@ -668,7 +678,7 @@ function ActionCenter({
                   </div>
                 </div>
                 <a
-                  href={`/loueur/demandes/${r.id}`}
+                  href={`/loueur/demandes/${r.id}?tab=finance`}
                   className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg bg-violet-100 hover:bg-violet-200 text-violet-700 transition-colors flex items-center gap-1"
                 >
                   <FileText className="w-3 h-3" />
