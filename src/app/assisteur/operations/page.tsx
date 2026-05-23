@@ -7,9 +7,9 @@ import { fr }                                         from 'date-fns/locale'
 import {
   AlertTriangle, Zap, CalendarPlus, CreditCard, FileWarning,
   CheckCircle2, RefreshCw, ChevronRight, Clock, Building2,
-  Bell, Check, X, Loader2,
+  Bell,
 } from 'lucide-react'
-import { getAllRequests, respondToExtension }         from '@/services/requestService'
+import { getAllRequests }                             from '@/services/requestService'
 import { filterRequestsForUser }                      from '@/services/assistanceUserService'
 import { getSession }                                 from '@/services/currentSessionService'
 import { getEffectiveDuration }                       from '@/types/request'
@@ -23,15 +23,6 @@ import {
 import type { AssisteurDrawerState }                  from '@/components/assisteur/AssisteurOperationsDrawer'
 import type { AssistanceRequest }                     from '@/types/request'
 import type { MockSession }                           from '@/types/session'
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-interface ExtensionModal {
-  request:     AssistanceRequest
-  extensionId: string
-  days:        number
-  response:    'acceptee' | 'refusee'
-}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -122,71 +113,6 @@ function OpCard({ r, hint, accent }: { r: AssistanceRequest; hint: string; accen
   )
 }
 
-// ── Modal confirmation prolongation ───────────────────────────────────────────
-
-function ExtensionConfirmModal({
-  modal,
-  onConfirm,
-  onCancel,
-  loading,
-}: {
-  modal:     ExtensionModal
-  onConfirm: () => void
-  onCancel:  () => void
-  loading:   boolean
-}) {
-  const isAccept = modal.response === 'acceptee'
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div className="relative bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 flex flex-col gap-4">
-        <div className={`flex items-center gap-3 p-3 rounded-xl ${isAccept ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200'}`}>
-          {isAccept
-            ? <Check className="w-5 h-5 text-emerald-600 shrink-0" />
-            : <X     className="w-5 h-5 text-red-600 shrink-0" />
-          }
-          <div>
-            <p className={`font-semibold text-sm ${isAccept ? 'text-emerald-800' : 'text-red-800'}`}>
-              {isAccept ? 'Accepter la prolongation' : 'Refuser la prolongation'}
-            </p>
-            <p className={`text-xs mt-0.5 ${isAccept ? 'text-emerald-700' : 'text-red-700'}`}>
-              {modal.days} jour{modal.days > 1 ? 's' : ''} supplémentaire{modal.days > 1 ? 's' : ''} — dossier{' '}
-              <span className="font-mono">{modal.request.dossierNumber}</span>
-            </p>
-          </div>
-        </div>
-
-        <p className="text-sm text-slate-600">
-          {isAccept
-            ? 'La durée de location sera prolongée. Le loueur sera notifié.'
-            : 'Le loueur sera notifié du refus et pourra proposer une alternative.'}
-        </p>
-
-        <div className="flex gap-2">
-          <button
-            onClick={onConfirm}
-            disabled={loading}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-white transition-colors disabled:opacity-60 ${
-              isAccept ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
-            }`}
-          >
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            {isAccept ? 'Confirmer l\'acceptation' : 'Confirmer le refus'}
-          </button>
-          <button
-            onClick={onCancel}
-            disabled={loading}
-            className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors disabled:opacity-50"
-          >
-            Annuler
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AssisteurOperationsPage() {
@@ -194,9 +120,6 @@ export default function AssisteurOperationsPage() {
   const [session,    setSession]    = useState<MockSession | null>(null)
   const [loading,    setLoading]    = useState(true)
   const [drawer,     setDrawer]     = useState<AssisteurDrawerState | null>(null)
-  const [extModal,   setExtModal]   = useState<ExtensionModal | null>(null)
-  const [extLoading, setExtLoading] = useState(false)
-  const [extSuccess, setExtSuccess] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -217,22 +140,6 @@ export default function AssisteurOperationsPage() {
   function updateLocal(updated: AssistanceRequest) {
     setRequests(prev => prev.map(r => r.id === updated.id ? updated : r))
     setDrawer(null)
-  }
-
-  async function handleExtensionConfirm() {
-    if (!extModal) return
-    setExtLoading(true)
-    const updated = await respondToExtension(
-      extModal.request.id,
-      extModal.extensionId,
-      extModal.response,
-    )
-    setExtLoading(false)
-    if (updated) {
-      setRequests(prev => prev.map(r => r.id === updated.id ? updated : r))
-      setExtSuccess(extModal.request.id + '-' + extModal.extensionId)
-    }
-    setExtModal(null)
   }
 
   void session
@@ -473,47 +380,24 @@ export default function AssisteurOperationsPage() {
                   </Link>
                 </div>
 
-                {/* Extensions en attente */}
+                {/* Extensions en attente — lecture seule, c'est le loueur qui répond */}
                 <div className="border-t border-amber-100 px-4 py-2 flex flex-col gap-2">
-                  {pendingExts.map(ext => {
-                    const key = `${r.id}-${ext.id}`
-                    const isSuccess = extSuccess === key
-                    return (
-                      <div key={ext.id} className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <span className="text-xs font-semibold text-amber-800">
-                            +{ext.requestedDays} jour{ext.requestedDays > 1 ? 's' : ''}
-                          </span>
-                          {ext.note && (
-                            <span className="text-xs text-slate-400 ml-1.5 truncate">· {ext.note}</span>
-                          )}
-                        </div>
-                        {isSuccess ? (
-                          <span className="flex items-center gap-1 text-xs text-emerald-600 font-semibold shrink-0">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            Traité
-                          </span>
-                        ) : (
-                          <div className="flex gap-1.5 shrink-0">
-                            <button
-                              onClick={() => setExtModal({ request: r, extensionId: ext.id, days: ext.requestedDays, response: 'acceptee' })}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-colors"
-                            >
-                              <Check className="w-3 h-3" />
-                              Accepter
-                            </button>
-                            <button
-                              onClick={() => setExtModal({ request: r, extensionId: ext.id, days: ext.requestedDays, response: 'refusee' })}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold transition-colors"
-                            >
-                              <X className="w-3 h-3" />
-                              Refuser
-                            </button>
-                          </div>
+                  {pendingExts.map(ext => (
+                    <div key={ext.id} className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="text-xs font-semibold text-amber-800">
+                          +{ext.requestedDays} jour{ext.requestedDays > 1 ? 's' : ''}
+                        </span>
+                        {ext.note && (
+                          <span className="text-xs text-slate-400 ml-1.5 truncate">· {ext.note}</span>
                         )}
                       </div>
-                    )
-                  })}
+                      <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 shrink-0 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                        <Clock className="w-3 h-3" />
+                        En attente du loueur
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )
@@ -631,15 +515,6 @@ export default function AssisteurOperationsPage() {
         onSuccess={updateLocal}
       />
 
-      {/* Modal confirmation prolongation */}
-      {extModal && (
-        <ExtensionConfirmModal
-          modal={extModal}
-          onConfirm={handleExtensionConfirm}
-          onCancel={() => setExtModal(null)}
-          loading={extLoading}
-        />
-      )}
     </>
   )
 }
