@@ -15,7 +15,7 @@ import { SharedRequestDocuments }    from '@/components/shared/SharedRequestDocu
 import { RequestTimeline }           from '@/components/shared/RequestTimeline'
 import { LoueurStatusBadge }         from '@/components/loueur/LoueurStatusBadge'
 import {
-  getReceivedRequestById, respondToRequest, loueurConfirmReturn,
+  getReceivedRequestById, respondToRequest, loueurConfirmReturn, loueurReportNonReturn,
 } from '@/services/loueurService'
 import { respondToExtension }        from '@/services/requestService'
 import { getAgencyById }             from '@/services/rentalAgencyService'
@@ -145,12 +145,16 @@ export default function LoueurRequestDetailPage() {
   const [agency,        setAgency]        = useState<RentalAgencyRow | null>(null)
   const [activeTab,     setActiveTab]     = useState<TabId>('sinistre')
   const [extLoading,    setExtLoading]    = useState(false)
-  const [returnDate,    setReturnDate]    = useState(todayStr)
-  const [returnTime,    setReturnTime]    = useState(nowTimeStr)
-  const [returnLoading, setReturnLoading] = useState(false)
-  const [damageDesc,    setDamageDesc]    = useState('')
-  const [damageLoading, setDamageLoading] = useState(false)
-  const [damageError,   setDamageError]   = useState<string | null>(null)
+  const [returnDate,        setReturnDate]        = useState(todayStr)
+  const [returnTime,        setReturnTime]        = useState(nowTimeStr)
+  const [returnLoading,     setReturnLoading]     = useState(false)
+  const [vehicleReturned,   setVehicleReturned]   = useState<boolean | null>(null)
+  const [nonReturnNote,     setNonReturnNote]     = useState('')
+  const [nonReturnLoading,  setNonReturnLoading]  = useState(false)
+  const [nonReturnReported, setNonReturnReported] = useState(false)
+  const [damageDesc,        setDamageDesc]        = useState('')
+  const [damageLoading,     setDamageLoading]     = useState(false)
+  const [damageError,       setDamageError]       = useState<string | null>(null)
 
   useEffect(() => {
     getReceivedRequestById(id).then(found => {
@@ -186,6 +190,17 @@ export default function LoueurRequestDetailPage() {
     if (updated) setRequest(r => r ? { ...r, ...updated } : r)
     setReturnLoading(false)
   }, [request, returnDate, returnTime])
+
+  const handleReportNonReturn = useCallback(async () => {
+    if (!request) return
+    setNonReturnLoading(true)
+    const updated = await loueurReportNonReturn(request.id, nonReturnNote || undefined)
+    if (updated) {
+      setRequest(r => r ? { ...r, ...updated } : r)
+      setNonReturnReported(true)
+    }
+    setNonReturnLoading(false)
+  }, [request, nonReturnNote])
 
   const handleDeclareDamage = useCallback(async () => {
     if (!request) return
@@ -364,6 +379,12 @@ export default function LoueurRequestDetailPage() {
             returnDate={returnDate} returnTime={returnTime}
             onDateChange={setReturnDate} onTimeChange={setReturnTime}
             onConfirmReturn={handleConfirmReturn} returnLoading={returnLoading}
+            vehicleReturned={vehicleReturned}
+            onVehicleReturnedYes={() => setVehicleReturned(true)}
+            onVehicleReturnedNo={() => setVehicleReturned(false)}
+            nonReturnNote={nonReturnNote} onNonReturnNoteChange={setNonReturnNote}
+            onReportNonReturn={handleReportNonReturn}
+            nonReturnLoading={nonReturnLoading} nonReturnReported={nonReturnReported}
             damageDesc={damageDesc} onDamageDescChange={setDamageDesc}
             onDeclareDamage={handleDeclareDamage} damageLoading={damageLoading} damageError={damageError}
           />
@@ -740,17 +761,24 @@ function DocumentsTab({ request }: { request: ReceivedRequest }) {
 function RetourTab({
   request,
   returnDate, returnTime, onDateChange, onTimeChange, onConfirmReturn, returnLoading,
+  vehicleReturned, onVehicleReturnedYes, onVehicleReturnedNo,
+  nonReturnNote, onNonReturnNoteChange, onReportNonReturn, nonReturnLoading, nonReturnReported,
   damageDesc, onDamageDescChange, onDeclareDamage, damageLoading, damageError,
 }: {
   request: ReceivedRequest
   returnDate: string; returnTime: string
   onDateChange: (v: string) => void; onTimeChange: (v: string) => void
   onConfirmReturn: () => void; returnLoading: boolean
+  vehicleReturned: boolean | null
+  onVehicleReturnedYes: () => void; onVehicleReturnedNo: () => void
+  nonReturnNote: string; onNonReturnNoteChange: (v: string) => void
+  onReportNonReturn: () => void; nonReturnLoading: boolean; nonReturnReported: boolean
   damageDesc: string; onDamageDescChange: (v: string) => void
   onDeclareDamage: () => void; damageLoading: boolean; damageError: string | null
 }) {
   const endDate    = getEndDate(request)
   const alertState = getRentalAlertState(request)
+  const isOverdue  = alertState === 'overdue'
   const showReturnForm = (
     (request.status === 'confirmee' && getDisplayStatus(request.status, request.dateNeeded) === 'en_cours') ||
     request.status === 'overdue'
@@ -760,28 +788,53 @@ function RetourTab({
     <div className="flex flex-col gap-4">
       <Card title="Dates de retour">
         <InfoRow icon={<Calendar className="w-4 h-4" />} label="Retour prévu"
-          value={<span className={alertState === 'overdue' ? 'text-red-600 font-semibold' : ''}>{fmtDateLong(endDate)} à {fmtTime(endDate)}</span>} />
+          value={<span className={isOverdue ? 'text-red-600 font-semibold' : ''}>{fmtDateLong(endDate)} à {fmtTime(endDate)}</span>} />
         {request.returnedAt && (
           <InfoRow icon={<CalendarCheck className="w-4 h-4" />} label="Retour effectif"
             value={<span className="text-green-700 font-semibold">{fmtDateLong(request.returnedAt)} à {fmtTime(request.returnedAt)}</span>} />
         )}
-        {alertState === 'overdue' && (
+        {isOverdue && (
           <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-red-50 rounded-xl border border-red-200">
             <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-            <span className="text-sm text-red-700 font-semibold">Véhicule en retard — confirmez le retour ci-dessous</span>
+            <span className="text-sm text-red-700 font-semibold">Véhicule en retard — confirmez la situation ci-dessous</span>
           </div>
         )}
       </Card>
 
-      {showReturnForm && (
+      {/* ── Étape 1 : le véhicule est-il rentré ? ── */}
+      {showReturnForm && vehicleReturned === null && (
+        <div className={`border-2 rounded-2xl p-5 space-y-4 ${isOverdue ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'}`}>
+          <div className={`flex items-center gap-2 font-semibold ${isOverdue ? 'text-red-700' : 'text-blue-700'}`}>
+            <Car className="w-5 h-5 shrink-0" />
+            Le véhicule a-t-il bien été restitué ?
+          </div>
+          <p className={`text-sm ${isOverdue ? 'text-red-700/80' : 'text-blue-700/80'}`}>
+            {isOverdue
+              ? 'La date de retour est dépassée. Confirmez la situation réelle avant de procéder.'
+              : 'Confirmez la restitution effective du véhicule avant de saisir la date.'}
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <button onClick={onVehicleReturnedYes}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors shadow-sm">
+              <CheckCircle2 className="w-4 h-4" />
+              Oui, le véhicule est rentré
+            </button>
+            <button onClick={onVehicleReturnedNo}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 border border-red-300 text-red-700 text-sm font-semibold transition-colors">
+              <AlertTriangle className="w-4 h-4" />
+              Non, il n'a pas été rendu
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Étape 2a : formulaire retour ── */}
+      {showReturnForm && vehicleReturned === true && (
         <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-5 space-y-4">
           <div className="flex items-center gap-2 text-blue-700 font-semibold">
             <CalendarCheck className="w-5 h-5 shrink-0" />
-            Confirmer le retour du véhicule
+            Saisir la date et l'heure de retour
           </div>
-          <p className="text-sm text-blue-700/80">
-            Saisissez la date et l'heure de restitution effective du véhicule puis confirmez.
-          </p>
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Date de retour</label>
@@ -805,7 +858,58 @@ function RetourTab({
               Confirmer le retour
             </button>
           </div>
+          <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <FileText className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-800">
+              N'oubliez pas de déposer le <strong>contrat de location</strong> et la <strong>facture</strong> dans l'onglet Documents.
+            </p>
+          </div>
         </div>
+      )}
+
+      {/* ── Étape 2b : signalement non-retour ── */}
+      {showReturnForm && vehicleReturned === false && (
+        nonReturnReported ? (
+          <div className="flex items-start gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-2xl">
+            <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-red-800">Signalement envoyé à Drives On</p>
+              <p className="text-xs text-red-700 mt-1">
+                L'équipe va prendre contact avec le partenaire pour résoudre la situation.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-5 space-y-4">
+            <div className="flex items-center gap-2 text-red-700 font-semibold">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              Signalement de non-retour
+            </div>
+            <p className="text-sm text-red-700/80">
+              Drives On sera alerté et prendra contact avec le partenaire (assistance, assurance ou garage)
+              pour régulariser la situation.
+            </p>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-red-700 uppercase tracking-wide">Précision (optionnel)</label>
+              <textarea
+                value={nonReturnNote} onChange={e => onNonReturnNoteChange(e.target.value)} rows={3}
+                placeholder="Ex : client injoignable, véhicule non restitué malgré relances…"
+                className="w-full px-3 py-2 rounded-xl border border-red-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={onReportNonReturn} disabled={nonReturnLoading}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-60 transition-colors shadow-sm">
+                {nonReturnLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
+                Signaler à Drives On
+              </button>
+              <button onClick={onVehicleReturnedYes}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-500 text-sm hover:bg-slate-50 transition-colors">
+                ← Le véhicule est finalement rentré
+              </button>
+            </div>
+          </div>
+        )
       )}
 
       {request.status === 'honoree' && (

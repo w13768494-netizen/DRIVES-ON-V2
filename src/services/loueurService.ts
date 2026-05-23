@@ -1,7 +1,7 @@
 import {
   getAllRequests, getRequestById, updateRequest,
   addTransferToRequest, lockRequestAfterConfirmation, confirmByAssisteur, refuseCounterOffer,
-  confirmVehicleReturn,
+  confirmVehicleReturn, reportVehicleNotReturned,
 } from '@/services/requestService'
 import { getMyAgencies, getAgencyById, getAllActiveAgencies, type RentalAgencyRow } from '@/services/rentalAgencyService'
 import { calculateDistance }       from '@/lib/distance'
@@ -197,6 +197,23 @@ export async function loueurConfirmReturn(
   const updated = await confirmVehicleReturn(requestId, returnedAt)
   if (updated) {
     fireNotifyAssisteur({ requestId, eventType: 'retour_confirme', agencyId: aKey, agencyName: aName })
+  }
+  return updated
+}
+
+export async function loueurReportNonReturn(
+  requestId: string,
+  note?:     string,
+): Promise<AssistanceRequest | null> {
+  const [myAgencies, updated] = await Promise.all([
+    getMyAgencies(),
+    reportVehicleNotReturned(requestId, note),
+  ])
+  if (updated) {
+    const agency = findMatchingAgency(updated, myAgencies)
+    const aKey   = agency ? agencyKey(agency) : ''
+    const aName  = agency?.agency_name ?? ''
+    fireNotifyAssisteur({ requestId, eventType: 'non_retour_signale', agencyId: aKey, agencyName: aName })
   }
   return updated
 }

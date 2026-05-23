@@ -11,7 +11,8 @@ export type AlertCode =
   | 'transfert_bloque'
   | 'confirmation_sans_agence'
   | 'honore_sans_retour'
-  | 'agence_sans_coords'  // système uniquement — dashboard global
+  | 'agence_sans_coords'   // système uniquement — dashboard global
+  | 'non_retour_signale'
 
 export type AlertSeverity = 'rouge' | 'orange' | 'jaune'
 

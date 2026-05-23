@@ -40,6 +40,7 @@ const TIMELINE_ICONS: Record<TimelineEventType, React.ReactNode> = {
   partenaire_relance:        <Bell           className="w-4 h-4" />,
   document_valide:           <CheckCircle2   className="w-4 h-4" />,
   document_refuse:           <XCircle        className="w-4 h-4" />,
+  non_retour_signale:        <AlertTriangle  className="w-4 h-4" />,
 }
 
 const TIMELINE_COLORS: Record<TimelineEventType, string> = {
@@ -71,6 +72,7 @@ const TIMELINE_COLORS: Record<TimelineEventType, string> = {
   partenaire_relance:        'bg-amber-100   text-amber-600  border-amber-200',
   document_valide:           'bg-green-100   text-green-600  border-green-200',
   document_refuse:           'bg-red-100     text-red-600    border-red-200',
+  non_retour_signale:        'bg-red-600     text-white      border-red-700',
 }
 
 interface Props {

@@ -715,6 +715,28 @@ export async function confirmVehicleReturn(
 }
 
 /**
+ * Signalement de non-retour par le loueur.
+ * Pose un flag admin + event timeline sans changer le statut —
+ * Drives On prend contact avec le partenaire pour régulariser.
+ */
+export async function reportVehicleNotReturned(
+  requestId: string,
+  note?:     string,
+): Promise<AssistanceRequest | null> {
+  const request = await getRequestById(requestId)
+  if (!request || (request.status !== 'confirmee' && request.status !== 'overdue')) return null
+
+  const evt: RequestTimelineEvent = {
+    id: generateEvtId(), type: 'non_retour_signale', at: new Date(), byRole: 'loueur',
+    message: note,
+  }
+  return updateRequest(requestId, {
+    adminFlags: [...(request.adminFlags ?? []), 'non_retour_signale'],
+    timeline:   [...request.timeline, evt],
+  })
+}
+
+/**
  * Résolution overdue par le partenaire assisteur.
  * Le véhicule est déclaré rendu : overdue → honoree.
  * Justification obligatoire pour l'audit.

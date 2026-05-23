@@ -305,7 +305,40 @@ export default function LoueurOperationsPage() {
           pulse
         >
           {overdue.map(r => (
-            <OpCard key={r.id} r={r} hint="OVERDUE" accent="bg-red-500" />
+            <div
+              key={r.id}
+              className="flex items-stretch rounded-xl border border-red-200 bg-red-50/20 overflow-hidden"
+            >
+              <div className="w-1 shrink-0 bg-red-500" />
+              <div className="flex-1 px-4 py-3 min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-0.5">
+                  <span className="font-mono text-xs text-slate-400">{r.dossierNumber}</span>
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full border bg-red-100 text-red-700 border-red-200">
+                    OVERDUE
+                  </span>
+                </div>
+                <p className="font-semibold text-slate-900 text-sm truncate">
+                  {r.sinistre.lastName} {r.sinistre.firstName}
+                </p>
+                <p className="text-xs text-slate-500 truncate mt-0.5">
+                  {VEHICLE_CATEGORY_LABELS[r.vehicleCategory]} · {r.location.address}
+                </p>
+              </div>
+              <div className="flex flex-col items-stretch justify-center gap-1 px-3 border-l border-red-100 shrink-0">
+                <button
+                  onClick={() => setDrawer({ request: r, mode: 'retour' })}
+                  className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors whitespace-nowrap"
+                >
+                  Confirmer
+                </button>
+                <Link
+                  href={`/loueur/demandes/${r.id}`}
+                  className="flex items-center justify-center px-3 py-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors text-xs"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            </div>
           ))}
         </Section>
 
