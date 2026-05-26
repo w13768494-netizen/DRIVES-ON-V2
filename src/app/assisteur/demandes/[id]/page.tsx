@@ -32,7 +32,7 @@ import { REQUEST_TYPE_LABELS } from '@/types/request'
 import { REQUEST_DOCUMENT_TYPE_LABELS } from '@/types/requestDocument'
 import type { AssistanceRequest } from '@/types/request'
 import type { RentalAgency } from '@/types/rentalAgency'
-import type { RequestDocument } from '@/types/requestDocument'
+import type { RequestDocument, RequestDocumentType } from '@/types/requestDocument'
 
 // ── Tab types ─────────────────────────────────────────────────────────────────
 
@@ -180,12 +180,17 @@ export default function DemandeDetailPage({
 
   const hasCoverageDoc       = docs.some(d => d.type === 'prise_en_charge' && d.owner === 'assisteur')
   const loueurDocs           = docs.filter(d => d.owner === 'loueur')
-  const requiredLoueurDocTypes = request.hasDamageClaim
-    ? (['contrat', 'facture', 'etat_depart', 'etat_retour'] as const)
-    : (['contrat', 'facture'] as const)
-  const missingDocs          = requiredLoueurDocTypes.filter(t => !loueurDocs.some(d => d.type === t))
+  const requiredLoueurDocTypes: RequestDocumentType[] = [
+    'contrat', 'etat_retour', 'facture',
+    ...(request.hasDamageClaim ? ['etat_depart' as RequestDocumentType] : []),
+  ]
+  const missingDocs          = requiredLoueurDocTypes.filter(
+    t => !loueurDocs.some(d => d.type === t && d.validationStatus !== 'rejected'),
+  )
+  const requiresPEC          = !!(request.coverageType && request.coverageType !== 'none')
+  const pecOk                = !requiresPEC || docs.some(d => d.type === 'prise_en_charge' && d.validationStatus !== 'rejected')
   const paymentValidated     = request.paymentStatus === 'paye' || request.paymentStatus === 'non_applicable'
-  const canClose             = request.status === 'honoree' && missingDocs.length === 0 && paymentValidated
+  const canClose             = request.status === 'honoree' && missingDocs.length === 0 && pecOk && paymentValidated
 
   const agencyAddress = agency
     ? [agency.address, agency.postalCode, agency.city].filter(Boolean).join(', ')
@@ -385,11 +390,12 @@ export default function DemandeDetailPage({
             request={request}
             alertState={alertState}
             endDate={endDate}
-            missingDocs={[...missingDocs]}
             paymentStatus={request.paymentStatus}
             canClose={canClose}
             closing={closing}
             onClose={handleClose}
+            docs={docs}
+            onTabChange={setActiveTab}
           />
         )}
         {activeTab === 'historique'    && <HistoriqueTab request={request} />}
@@ -885,21 +891,31 @@ function DocumentsTab({ request, hasCoverageDoc, missingDocs }: {
 
 // ── Tab F — Retour / Dégâts ───────────────────────────────────────────────────
 
-function RetourTab({ request, alertState, endDate, missingDocs, paymentStatus, canClose, closing, onClose }: {
+type DocCheckStatus = 'valid' | 'pending' | 'rejected' | 'absent'
+
+function getDocStatus(
+  docs: RequestDocument[],
+  type: RequestDocumentType,
+  owner?: 'loueur' | 'assisteur',
+): DocCheckStatus {
+  const matches = docs.filter(d => d.type === type && (!owner || d.owner === owner))
+  if (matches.length === 0) return 'absent'
+  if (matches.some(d => d.validationStatus === 'valid'))   return 'valid'
+  if (matches.some(d => d.validationStatus === 'pending')) return 'pending'
+  return 'rejected'
+}
+
+function RetourTab({ request, alertState, endDate, paymentStatus, canClose, closing, onClose, docs, onTabChange }: {
   request: AssistanceRequest
   alertState: string
   endDate: Date
-  missingDocs: string[]
   paymentStatus: string | undefined
   canClose: boolean
   closing: boolean
   onClose: () => void
+  docs: RequestDocument[]
+  onTabChange: (tab: TabId) => void
 }) {
-  const paymentOk = paymentStatus === 'paye' || paymentStatus === 'non_applicable'
-
-  const requiredDocTypes = request.hasDamageClaim
-    ? (['contrat', 'facture', 'etat_depart', 'etat_retour'] as const)
-    : (['contrat', 'facture'] as const)
 
   return (
     <div className="flex flex-col gap-4">
@@ -943,57 +959,108 @@ function RetourTab({ request, alertState, endDate, missingDocs, paymentStatus, c
         </div>
       )}
 
-      {/* Closure readiness (honoree) */}
+      {/* Closure checklist (honoree) */}
       {request.status === 'honoree' && (() => {
-        const allReady = missingDocs.length === 0 && paymentOk
+        const requiresPEC = !!(request.coverageType && request.coverageType !== 'none')
+        const docItems: Array<{ label: string; type: RequestDocumentType; owner: 'loueur' | 'assisteur' }> = [
+          ...(requiresPEC ? [{ label: 'Prise en charge', type: 'prise_en_charge' as RequestDocumentType, owner: 'assisteur' as const }] : []),
+          { label: 'Contrat signé',         type: 'contrat'     as RequestDocumentType, owner: 'loueur' as const },
+          { label: 'État des lieux retour', type: 'etat_retour' as RequestDocumentType, owner: 'loueur' as const },
+          { label: 'Facture',               type: 'facture'     as RequestDocumentType, owner: 'loueur' as const },
+          ...(request.hasDamageClaim ? [{ label: 'État des lieux départ', type: 'etat_depart' as RequestDocumentType, owner: 'loueur' as const }] : []),
+        ]
+        const paymentOk = paymentStatus === 'paye' || paymentStatus === 'non_applicable'
+        const docBlockers = docItems.filter(i => { const s = getDocStatus(docs, i.type, i.owner); return s === 'absent' || s === 'rejected' }).length
+        const totalBlockers = docBlockers + (paymentOk ? 0 : 1)
+
+        const DOC_ICON: Record<DocCheckStatus, React.ReactNode> = {
+          valid:    <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />,
+          pending:  <AlertCircle  className="w-4 h-4 text-amber-400 shrink-0" />,
+          rejected: <XCircle      className="w-4 h-4 text-red-500 shrink-0" />,
+          absent:   <AlertCircle  className="w-4 h-4 text-slate-300 shrink-0" />,
+        }
+        const DOC_CLASS: Record<DocCheckStatus, string> = {
+          valid:    'bg-green-50 border-green-200 text-green-700',
+          pending:  'bg-amber-50 border-amber-200 text-amber-700',
+          rejected: 'bg-red-50 border-red-200 text-red-700',
+          absent:   'bg-white border-slate-200 text-slate-400',
+        }
+        const DOC_HINT: Record<DocCheckStatus, string | null> = {
+          valid:    null,
+          pending:  'En attente de validation',
+          rejected: 'Refusé — re-déposer',
+          absent:   'Non déposé',
+        }
+
         return (
-          <div className={`rounded-2xl border-2 overflow-hidden ${allReady ? 'border-green-300' : 'border-blue-300'}`}>
-            <div className={`h-1 w-full ${allReady ? 'bg-green-500' : 'bg-blue-500'}`} />
-            <div className={`p-5 space-y-4 ${allReady ? 'bg-green-50' : 'bg-blue-50'}`}>
-              <div className={`flex items-center gap-2 font-semibold ${allReady ? 'text-green-700' : 'text-blue-700'}`}>
-                <CheckCircle2 className="w-5 h-5 shrink-0" />
-                Conditions de clôture
-                {request.hasDamageClaim && (
-                  <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">Sinistre</span>
+          <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
+            <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-slate-400 shrink-0" />
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex-1">Conditions de clôture</span>
+              {request.hasDamageClaim && (
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">Sinistre</span>
+              )}
+            </div>
+            <div className="px-5 py-4 flex flex-col gap-1.5">
+              {docItems.map(item => {
+                const status = getDocStatus(docs, item.type, item.owner)
+                return (
+                  <div key={item.type} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border text-sm font-medium ${DOC_CLASS[status]}`}>
+                    {DOC_ICON[status]}
+                    <span className="flex-1">{item.label}</span>
+                    {status !== 'valid' && (
+                      <button
+                        onClick={() => onTabChange('documents')}
+                        className="text-xs font-semibold opacity-60 hover:opacity-100 underline underline-offset-2 transition-opacity shrink-0"
+                      >
+                        {DOC_HINT[status]} · Voir →
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+
+              <div className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border text-sm font-medium ${paymentOk ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-slate-200 text-slate-400'}`}>
+                {paymentOk
+                  ? <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                  : <AlertCircle  className="w-4 h-4 text-slate-300 shrink-0" />
+                }
+                <span className="flex-1">
+                  {paymentOk
+                    ? (paymentStatus === 'non_applicable' ? 'Aucun paiement requis' : 'Paiement validé')
+                    : 'Paiement en attente de validation DRIVES ON'}
+                </span>
+                {!paymentOk && (
+                  <button
+                    onClick={() => onTabChange('finance')}
+                    className="text-xs font-semibold opacity-60 hover:opacity-100 underline underline-offset-2 transition-opacity shrink-0"
+                  >
+                    Voir Finance →
+                  </button>
                 )}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {requiredDocTypes.map(type => {
-                  const present = !missingDocs.includes(type)
-                  return (
-                    <div key={type} className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium ${present ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-slate-200 text-slate-400'}`}>
-                      {present ? <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> : <AlertCircle className="w-4 h-4 text-slate-300 shrink-0" />}
-                      {REQUEST_DOCUMENT_TYPE_LABELS[type]}
-                    </div>
-                  )
-                })}
-                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium sm:col-span-2 ${paymentOk ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-slate-200 text-slate-400'}`}>
-                  {paymentOk ? <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> : <AlertCircle className="w-4 h-4 text-slate-300 shrink-0" />}
-                  {paymentOk
-                    ? (paymentStatus === 'non_applicable' ? 'Aucun paiement requis' : 'Paiement validé par DRIVES ON')
-                    : 'En attente de validation paiement par DRIVES ON'}
-                </div>
-              </div>
-              {!allReady && (
-                <p className="text-sm text-blue-600">
-                  Le dossier pourra être clôturé une fois tous les documents déposés et le paiement validé.
-                </p>
-              )}
+            </div>
+            <div className="px-5 pb-5">
+              <button
+                onClick={canClose ? onClose : undefined}
+                disabled={closing || !canClose}
+                className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-colors disabled:opacity-60 ${
+                  canClose
+                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                {closing
+                  ? <><Loader2 className="w-4 h-4 animate-spin" />Clôture en cours…</>
+                  : canClose
+                    ? 'Clôturer le dossier'
+                    : `${totalBlockers} point${totalBlockers > 1 ? 's' : ''} bloquant${totalBlockers > 1 ? 's' : ''} — clôture impossible`
+                }
+              </button>
             </div>
           </div>
         )
       })()}
-
-      {/* Close button */}
-      {canClose && (
-        <button
-          onClick={onClose}
-          disabled={closing}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 font-semibold text-sm transition-colors disabled:opacity-50"
-        >
-          {closing ? 'Clôture…' : 'Clôturer le dossier'}
-        </button>
-      )}
 
       {/* Refused — re-send */}
       {request.status === 'refusee' && (
