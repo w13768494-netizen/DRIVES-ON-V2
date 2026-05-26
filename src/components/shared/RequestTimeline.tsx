@@ -6,7 +6,7 @@ import {
   PlusCircle, Send, Eye, CheckCircle2, XCircle,
   ArrowRightLeft, CheckCheck, ThumbsDown, ArrowRight,
   Star, Archive, Lock, Users, Tag, CalendarPlus, CalendarCheck, BadgeCheck,
-  RefreshCw, Bell, Banknote, AlertTriangle, ShieldCheck,
+  RefreshCw, Bell, Banknote, AlertTriangle, ShieldCheck, RotateCcw,
 } from 'lucide-react'
 import { TIMELINE_EVENT_LABELS } from '@/types/requestTimeline'
 import type { RequestTimelineEvent, TimelineEventType } from '@/types/requestTimeline'
@@ -41,6 +41,7 @@ const TIMELINE_ICONS: Record<TimelineEventType, React.ReactNode> = {
   document_valide:           <CheckCircle2   className="w-4 h-4" />,
   document_refuse:           <XCircle        className="w-4 h-4" />,
   non_retour_signale:        <AlertTriangle  className="w-4 h-4" />,
+  rebond:                    <RotateCcw      className="w-4 h-4" />,
 }
 
 const TIMELINE_COLORS: Record<TimelineEventType, string> = {
@@ -73,6 +74,7 @@ const TIMELINE_COLORS: Record<TimelineEventType, string> = {
   document_valide:           'bg-green-100   text-green-600  border-green-200',
   document_refuse:           'bg-red-100     text-red-600    border-red-200',
   non_retour_signale:        'bg-red-600     text-white      border-red-700',
+  rebond:                    'bg-brand-100   text-brand-700  border-brand-200',
 }
 
 interface Props {

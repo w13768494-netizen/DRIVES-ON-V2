@@ -123,6 +123,12 @@ export function computeOperationalFlags(request: AssistanceRequest): Operational
       priority = 'eleve'
     }
 
+    // Refusée : rebond requis
+    if (status === 'refusee') {
+      reasons.push('Rebond requis — tous les loueurs ont refusé')
+      priority = 'eleve'
+    }
+
     // Flags admin
     if ((request.adminFlags ?? []).includes('prioritaire')) {
       reasons.push('Marqué prioritaire')
@@ -130,7 +136,7 @@ export function computeOperationalFlags(request: AssistanceRequest): Operational
     }
   }
 
-  const isActionable = !['cloturee', 'refusee'].includes(status)
+  const isActionable = status !== 'cloturee'
 
   return { priority, reasons, deadlineLabel, isActionable }
 }

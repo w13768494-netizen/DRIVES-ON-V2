@@ -15,8 +15,11 @@ import {
 } from 'lucide-react'
 import {
   getRequestById, closeRequest, validateTransfer, refuseTransfer,
-  confirmByAssisteur, refuseCounterOffer,
+  confirmByAssisteur, refuseCounterOffer, relancerApresRefus,
 } from '@/services/requestService'
+import { getMatchingResults } from '@/services/matchingService'
+import { MatchedCompanyList }  from '@/components/assisteur/MatchedCompanyList'
+import type { MatchingResult } from '@/types/matching'
 import { getDocumentsByRequest } from '@/services/documentService'
 import { getRentalAgencyById } from '@/services/loueurService'
 import { getDisplayStatus } from '@/lib/displayStatus'
@@ -381,7 +384,7 @@ export default function DemandeDetailPage({
       {/* ── Tab content ──────────────────────────────────────────────────── */}
       <div className="mt-4">
         {activeTab === 'sinistre'      && <SinistreTab request={request} />}
-        {activeTab === 'envoi'         && <EnvoiTab request={request} agency={agency} agencyAddress={agencyAddress} mapsUrl={mapsUrl} endDate={endDate} />}
+        {activeTab === 'envoi'         && <EnvoiTab request={request} agency={agency} agencyAddress={agencyAddress} mapsUrl={mapsUrl} endDate={endDate} onRebondComplete={(u) => setRequest(u)} />}
         {activeTab === 'prolongations' && <ProlongationsTab request={request} isEnCours={isEnCours} onUpdated={setRequest} alertState={alertState} endDate={endDate} extDeadline={extDeadline} />}
         {activeTab === 'finance'       && <FinanceTab request={request} endDate={endDate} />}
         {activeTab === 'documents'     && <DocumentsTab request={request} hasCoverageDoc={hasCoverageDoc} missingDocs={[...missingDocs]} />}
@@ -540,22 +543,108 @@ function SinistreTab({ request }: { request: AssistanceRequest }) {
   )
 }
 
+// ── Rebond section ────────────────────────────────────────────────────────────
+
+function RebondSection({ request, onComplete }: {
+  request:    AssistanceRequest
+  onComplete: (updated: AssistanceRequest) => void
+}) {
+  const [step,    setStep]    = useState<'idle' | 'results'>('idle')
+  const [results, setResults] = useState<MatchingResult[]>([])
+  const [loading, setLoading] = useState(false)
+  const refused = request.loueurResponse
+
+  async function handleSearch() {
+    setLoading(true)
+    try {
+      const res = await getMatchingResults({
+        latitude:        request.location.latitude,
+        longitude:       request.location.longitude,
+        vehicleCategory: request.vehicleCategory,
+        radiusKm:        50,
+        durationDays:    request.durationDays,
+      })
+      setResults(res)
+      setStep('results')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleConfirm(companyIds: string[]) {
+    setLoading(true)
+    try {
+      const updated = await relancerApresRefus(request.id, companyIds)
+      if (updated) onComplete(updated)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (step === 'results') {
+    return (
+      <MatchedCompanyList
+        results={results}
+        vehicleCategory={request.vehicleCategory}
+        durationDays={request.durationDays}
+        onBack={() => setStep('idle')}
+        onConfirm={(companyIds) => handleConfirm(companyIds)}
+        loading={loading}
+      />
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {refused && (
+        <div className="flex overflow-hidden rounded-2xl border-2 border-red-200">
+          <div className="w-1 shrink-0 bg-red-500" />
+          <div className="flex items-start gap-3 p-4 bg-red-50">
+            <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-red-800">Demande refusée par {refused.agencyName}</p>
+              <p className="text-xs text-red-700 mt-0.5">
+                Vous pouvez relancer vers d&apos;autres loueurs sans recréer de dossier.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      <button
+        onClick={handleSearch}
+        disabled={loading}
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors disabled:opacity-50"
+      >
+        {loading
+          ? <><Loader2 className="w-4 h-4 animate-spin" />Recherche en cours…</>
+          : <><RotateCcw className="w-4 h-4" />Chercher d&apos;autres loueurs</>
+        }
+      </button>
+    </div>
+  )
+}
+
 // ── Tab B — Envoyer le client ─────────────────────────────────────────────────
 
-function EnvoiTab({ request, agency, agencyAddress, mapsUrl, endDate }: {
-  request: AssistanceRequest
-  agency: RentalAgency | null
-  agencyAddress: string
-  mapsUrl: string | null
-  endDate: Date
+function EnvoiTab({ request, agency, agencyAddress, mapsUrl, endDate, onRebondComplete }: {
+  request:          AssistanceRequest
+  agency:           RentalAgency | null
+  agencyAddress:    string
+  mapsUrl:          string | null
+  endDate:          Date
+  onRebondComplete: (updated: AssistanceRequest) => void
 }) {
   const resp = request.loueurResponse
+
+  if (request.status === 'refusee') {
+    return <RebondSection request={request} onComplete={onRebondComplete} />
+  }
 
   if (!resp) {
     return (
       <div className="flex flex-col items-center gap-2 py-16 text-slate-400">
         <Building2 className="w-8 h-8 opacity-30" />
-        <p className="text-sm">Aucun loueur confirmé pour l'instant.</p>
+        <p className="text-sm">Aucun loueur confirmé pour l&apos;instant.</p>
         <p className="text-xs text-center">Cette section sera disponible une fois la demande confirmée par un loueur.</p>
       </div>
     )
@@ -1062,18 +1151,7 @@ function RetourTab({ request, alertState, endDate, paymentStatus, canClose, clos
         )
       })()}
 
-      {/* Refused — re-send */}
-      {request.status === 'refusee' && (
-        <Link
-          href="/assisteur/nouvelle-demande"
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors"
-        >
-          <RotateCcw className="w-4 h-4" />
-          Relancer avec un autre loueur
-        </Link>
-      )}
-
-      {!request.returnedAt && alertState === 'none' && request.status !== 'honoree' && request.status !== 'litige_degat' && !request.hasDamageClaim && (
+      {!request.returnedAt && alertState === 'none' && request.status !== 'honoree' && request.status !== 'litige_degat' && !request.hasDamageClaim && request.status !== 'refusee' && (
         <div className="flex flex-col items-center gap-2 py-12 text-slate-400">
           <RotateCcw className="w-8 h-8 opacity-30" />
           <p className="text-sm">Aucun retour enregistré pour l'instant.</p>

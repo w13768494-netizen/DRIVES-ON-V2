@@ -513,6 +513,52 @@ export async function closeRequest(id: string, message?: string): Promise<void> 
   await updateRequest(id, { status: 'cloturee', timeline: [...request.timeline, evt] })
 }
 
+// ── Rebond après refus collectif ─────────────────────────────────────────────
+
+export async function relancerApresRefus(
+  requestId:    string,
+  newAgencyIds: string[],
+): Promise<AssistanceRequest | null> {
+  const request = await getRequestById(requestId)
+  if (!request || request.status !== 'refusee') return null
+
+  const primaryId = newAgencyIds[0]
+  const now       = new Date()
+
+  const envoisEvts = newAgencyIds.map((agencyId, i) => ({
+    id:      generateEvtId(),
+    type:    'envoi' as const,
+    at:      new Date(now.getTime() + i * 100),
+    byRole:  'assisteur' as const,
+    agencyId,
+  }))
+  const rebondEvt: RequestTimelineEvent = {
+    id:      generateEvtId(),
+    type:    'rebond',
+    at:      new Date(now.getTime() + newAgencyIds.length * 100 + 100),
+    byRole:  'assisteur',
+    message: `Relancé vers ${newAgencyIds.length} loueur${newAgencyIds.length > 1 ? 's' : ''}`,
+  }
+
+  const updated = await updateRequest(requestId, {
+    status:            'envoyee',
+    assignedAgencyId:  primaryId,
+    assignedAgencyIds: newAgencyIds.length > 1 ? newAgencyIds : undefined,
+    loueurResponse:    undefined,
+    timeline:          [...request.timeline, ...envoisEvts, rebondEvt],
+  })
+
+  if (updated && typeof window !== 'undefined') {
+    fetch('/api/notify-loueur', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ request: updated }),
+    }).catch(err => console.error('[relancerApresRefus] notify-loueur:', err))
+  }
+
+  return updated
+}
+
 // ── Transferts ────────────────────────────────────────────────────────────────
 
 export async function addTransferToRequest(

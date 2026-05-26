@@ -28,6 +28,7 @@ export type TimelineEventType =
   | 'document_valide'
   | 'document_refuse'
   | 'non_retour_signale'
+  | 'rebond'
 
 export const TIMELINE_EVENT_LABELS: Record<TimelineEventType, string> = {
   creation:           'Demande créée',
@@ -59,6 +60,7 @@ export const TIMELINE_EVENT_LABELS: Record<TimelineEventType, string> = {
   document_valide:           'Document validé par l\'administration',
   document_refuse:           'Document refusé par l\'administration',
   non_retour_signale:        'Non-retour signalé à Drives On par le loueur',
+  rebond:                    'Dossier relancé vers de nouveaux loueurs',
 }
 
 export const TIMELINE_EVENT_COLORS: Record<TimelineEventType, string> = {
@@ -91,6 +93,7 @@ export const TIMELINE_EVENT_COLORS: Record<TimelineEventType, string> = {
   document_valide:           'bg-green-100   text-green-700',
   document_refuse:           'bg-red-100     text-red-700',
   non_retour_signale:        'bg-red-600     text-white',
+  rebond:                    'bg-brand-100   text-brand-700',
 }
 
 export interface RequestTimelineEvent {
