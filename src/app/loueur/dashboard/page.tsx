@@ -1,15 +1,13 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { format, addDays }                      from 'date-fns'
+import { format }                               from 'date-fns'
 import { fr }                                   from 'date-fns/locale'
 import {
-  RefreshCw, Building2, Search, ChevronDown, ChevronUp,
-  AlertTriangle, CalendarCheck, CheckCircle2, Loader2,
-  FileText, Car, Bell, CreditCard, ExternalLink, Clock,
+  RefreshCw, Building2, AlertTriangle, CalendarCheck, CheckCircle2,
+  Loader2, FileText, Car, Bell, CreditCard, ExternalLink, Clock,
 } from 'lucide-react'
 import { RentalStats }             from '@/components/loueur/RentalStats'
-import { RentalRequestCard }       from '@/components/loueur/RentalRequestCard'
 import { LoueurOperationsDrawer }  from '@/components/loueur/LoueurOperationsDrawer'
 import type { DrawerState }        from '@/components/loueur/LoueurOperationsDrawer'
 import { getMyAgencies, type RentalAgencyRow } from '@/services/rentalAgencyService'
@@ -17,9 +15,7 @@ import { getReceivedRequests, loueurConfirmReturn, loueurReportNonReturn } from 
 import { respondToExtension }      from '@/services/requestService'
 import { getSession }              from '@/services/currentSessionService'
 import { getEndDate }              from '@/lib/rentalDates'
-import { getEffectiveDuration }    from '@/types/request'
 import { VEHICLE_CATEGORY_LABELS } from '@/types/vehicleCategory'
-import { getDisplayStatus, type DisplayStatusType } from '@/lib/displayStatus'
 import type { ReceivedRequest }    from '@/types/loueur'
 import type { MockSession }        from '@/types/session'
 
@@ -29,22 +25,6 @@ function todayStr()   { return new Date().toISOString().split('T')[0] }
 function nowTimeStr() {
   const d = new Date()
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
-type FilterTab = 'toutes' | DisplayStatusType
-
-const TABS: { key: FilterTab; label: string }[] = [
-  { key: 'toutes',              label: 'Toutes'     },
-  { key: 'en_attente',          label: 'En attente' },
-  { key: 'confirmee',           label: 'Confirmée'  },
-  { key: 'en_cours',            label: 'En cours'   },
-  { key: 'en_attente_paiement', label: 'Paiement'   },
-  { key: 'cloturee',            label: 'Clôturé'    },
-]
-
-function matchesTab(r: ReceivedRequest, tab: FilterTab): boolean {
-  if (tab === 'toutes') return true
-  return getDisplayStatus(r.status, r.dateNeeded) === tab
 }
 
 // ── Inline return form ────────────────────────────────────────────────────────
@@ -63,202 +43,13 @@ const defaultReturnState = (): ReturnInlineState => ({
   step: 'idle', date: todayStr(), time: nowTimeStr(), note: '', error: null,
 })
 
-// ── Kanban config ─────────────────────────────────────────────────────────────
-
-type KanbanCol = {
-  key:      string
-  label:    string
-  color:    string
-  accent:   string
-  bg:       string
-  match:    (r: ReceivedRequest) => boolean
-}
-
-const KANBAN_COLS: KanbanCol[] = [
-  {
-    key:    'nouvelles',
-    label:  'Nouvelles',
-    color:  'text-blue-700',
-    accent: 'bg-blue-500',
-    bg:     'bg-blue-50',
-    match:  r => ['envoyee', 'recue'].includes(r.status),
-  },
-  {
-    key:    'confirmees',
-    label:  'À préparer',
-    color:  'text-indigo-700',
-    accent: 'bg-indigo-500',
-    bg:     'bg-indigo-50',
-    // Confirmée mais pas encore commencée
-    match:  r => r.status === 'confirmee' && new Date(r.dateNeeded) > new Date(),
-  },
-  {
-    key:    'en_cours',
-    label:  'En location',
-    color:  'text-emerald-700',
-    accent: 'bg-emerald-500',
-    bg:     'bg-emerald-50',
-    // Confirmée, commencée, mais retour prévu dans plus d'1 jour
-    match:  r =>
-      r.status === 'confirmee' &&
-      new Date(r.dateNeeded) <= new Date() &&
-      getEndDate(r) > addDays(new Date(), 1),
-  },
-  {
-    key:    'retours',
-    label:  'Retours',
-    color:  'text-orange-700',
-    accent: 'bg-orange-500',
-    bg:     'bg-orange-50',
-    // Overdue ou retour prévu dans ≤1 jour
-    match:  r =>
-      r.status === 'overdue' ||
-      (r.status === 'confirmee' && getEndDate(r) <= addDays(new Date(), 1)),
-  },
-  {
-    key:    'a_cloturer',
-    label:  'À clôturer',
-    color:  'text-violet-700',
-    accent: 'bg-violet-500',
-    bg:     'bg-violet-50',
-    match:  r => r.status === 'honoree',
-  },
-]
-
 // ── ActionItem types ──────────────────────────────────────────────────────────
 
 type ActionItemKind =
-  | { kind: 'retour';     request: ReceivedRequest }
-  | { kind: 'extension';  request: ReceivedRequest; extId: string; days: number }
-  | { kind: 'nouvelle';   request: ReceivedRequest }
-  | { kind: 'paiement';   request: ReceivedRequest }
-
-// ── Mini Kanban card ──────────────────────────────────────────────────────────
-
-// Tab hint par colonne kanban
-const KANBAN_TAB_HINTS: Record<string, string> = {
-  retours:    'retour',
-  a_cloturer: 'finance',
-}
-
-function KanbanCard({
-  request,
-  col,
-  onAction,
-}: {
-  request:  ReceivedRequest
-  col:      KanbanCol
-  onAction: (r: ReceivedRequest, kind: 'repondre' | 'retour') => void
-}) {
-  const vehicle   = VEHICLE_CATEGORY_LABELS[request.vehicleCategory] ?? request.vehicleCategory
-  const endDate   = getEndDate(request)
-  const isReturn  = col.key === 'retours'
-  const isNew     = col.key === 'nouvelles'
-  const tabHint   = KANBAN_TAB_HINTS[col.key]
-  const dossierHref = tabHint
-    ? `/loueur/demandes/${request.id}?tab=${tabHint}`
-    : `/loueur/demandes/${request.id}`
-
-  return (
-    <div className={`rounded-xl border border-slate-200 bg-white p-3 flex flex-col gap-2 shadow-sm hover:shadow-md transition-shadow`}>
-      <div className="flex items-start justify-between gap-1">
-        <div className="min-w-0">
-          <p className="text-xs font-mono text-slate-400 leading-none">{request.dossierNumber}</p>
-          <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-            {request.sinistre.lastName} {request.sinistre.firstName}
-          </p>
-        </div>
-        <a
-          href={dossierHref}
-          className="shrink-0 w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-        >
-          <ExternalLink className="w-3 h-3" />
-        </a>
-      </div>
-
-      <p className="text-xs text-slate-500 truncate">{vehicle}</p>
-
-      {isReturn && (
-        <p className="text-xs text-orange-600 font-semibold">
-          Retour : {format(endDate, 'd MMM', { locale: fr })}
-          {request.status === 'overdue' && ' · Dépassé'}
-        </p>
-      )}
-
-      {(isReturn || isNew) && (
-        <button
-          onClick={() => onAction(request, isReturn ? 'retour' : 'repondre')}
-          className={`w-full py-1.5 rounded-lg text-xs font-bold transition-colors ${
-            isReturn
-              ? 'bg-orange-100 hover:bg-orange-200 text-orange-700'
-              : 'bg-blue-600 hover:bg-blue-700 text-white'
-          }`}
-        >
-          {isReturn ? 'Confirmer retour' : 'Répondre'}
-        </button>
-      )}
-
-      {col.key === 'a_cloturer' && (
-        <a
-          href={`/loueur/demandes/${request.id}?tab=finance`}
-          className="w-full py-1.5 rounded-lg text-xs font-bold text-center bg-violet-100 hover:bg-violet-200 text-violet-700 transition-colors"
-        >
-          Voir le dossier
-        </a>
-      )}
-    </div>
-  )
-}
-
-// ── Kanban Pipeline ───────────────────────────────────────────────────────────
-
-function KanbanPipeline({
-  requests,
-  onAction,
-}: {
-  requests: ReceivedRequest[]
-  onAction: (r: ReceivedRequest, mode: 'repondre' | 'retour') => void
-}) {
-  return (
-    <div className="overflow-x-auto -mx-4 px-4 pb-2">
-      <div className="flex gap-3 min-w-max">
-        {KANBAN_COLS.map(col => {
-          const cards = requests.filter(col.match)
-          return (
-            <div key={col.key} className="w-52 flex flex-col gap-2 shrink-0">
-              {/* Header */}
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${col.accent}`} />
-                <span className={`text-xs font-bold uppercase tracking-wider ${col.color}`}>{col.label}</span>
-                <span className="ml-auto text-xs font-bold text-slate-400 tabular-nums">{cards.length}</span>
-              </div>
-
-              {/* Cards */}
-              <div className="flex flex-col gap-2">
-                {cards.slice(0, 4).map(r => (
-                  <KanbanCard key={r.id} request={r} col={col} onAction={onAction} />
-                ))}
-                {cards.length > 4 && (
-                  <a
-                    href={`/loueur/dashboard`}
-                    className="text-xs text-slate-400 hover:text-slate-600 text-center py-1 transition-colors"
-                  >
-                    +{cards.length - 4} autres
-                  </a>
-                )}
-                {cards.length === 0 && (
-                  <div className={`rounded-xl border border-dashed border-slate-200 ${col.bg}/30 py-6 flex items-center justify-center`}>
-                    <span className="text-xs text-slate-300">Aucun</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
+  | { kind: 'retour';    request: ReceivedRequest }
+  | { kind: 'extension'; request: ReceivedRequest; extId: string; days: number }
+  | { kind: 'nouvelle';  request: ReceivedRequest }
+  | { kind: 'paiement';  request: ReceivedRequest }
 
 // ── Inline Return Action ──────────────────────────────────────────────────────
 
@@ -275,19 +66,19 @@ function InlineReturnAction({
   onReportNonReturn,
   onBack,
 }: {
-  request:          ReceivedRequest
-  state:            ReturnInlineState
-  loading:          boolean
-  onYes:            () => void
-  onNo:             () => void
-  onDateChange:     (v: string) => void
-  onTimeChange:     (v: string) => void
-  onNoteChange:     (v: string) => void
-  onConfirmReturn:  () => void
+  request:           ReceivedRequest
+  state:             ReturnInlineState
+  loading:           boolean
+  onYes:             () => void
+  onNo:              () => void
+  onDateChange:      (v: string) => void
+  onTimeChange:      (v: string) => void
+  onNoteChange:      (v: string) => void
+  onConfirmReturn:   () => void
   onReportNonReturn: () => void
-  onBack:           () => void
+  onBack:            () => void
 }) {
-  const endDate  = getEndDate(request)
+  const endDate   = getEndDate(request)
   const isOverdue = new Date() >= endDate
 
   if (state.step === 'confirm') {
@@ -407,10 +198,10 @@ function ActionCenter({
   onRequestsChange,
   onOpenDrawer,
 }: {
-  items:             ActionItemKind[]
-  requests:          ReceivedRequest[]
-  onRequestsChange:  (updated: ReceivedRequest) => void
-  onOpenDrawer:      (state: DrawerState) => void
+  items:            ActionItemKind[]
+  requests:         ReceivedRequest[]
+  onRequestsChange: (updated: ReceivedRequest) => void
+  onOpenDrawer:     (state: DrawerState) => void
 }) {
   const [returnStates,  setReturnStates]  = useState<Record<string, ReturnInlineState>>({})
   const [extLoading,    setExtLoading]    = useState<Record<string, boolean>>({})
@@ -496,11 +287,10 @@ function ActionCenter({
 
   return (
     <div className="flex flex-col gap-2">
-      {items.map((item, idx) => {
-        const r = item.request
+      {items.map((item) => {
+        const r       = item.request
         const vehicle = VEHICLE_CATEGORY_LABELS[r.vehicleCategory] ?? r.vehicleCategory
 
-        // ── Overdue / Retour ────────────────────────────────────────────────
         if (item.kind === 'retour') {
           const rs      = getReturnState(r.id)
           const loading = returnLoading[r.id] ?? false
@@ -570,7 +360,6 @@ function ActionCenter({
           )
         }
 
-        // ── Extension en attente ────────────────────────────────────────────
         if (item.kind === 'extension') {
           const { extId, days } = item
           const done    = extDone[extId]
@@ -632,7 +421,6 @@ function ActionCenter({
           )
         }
 
-        // ── Nouvelle demande ────────────────────────────────────────────────
         if (item.kind === 'nouvelle') {
           return (
             <div key={`new-${r.id}`} className="bg-white rounded-2xl border border-blue-200 shadow-sm p-4">
@@ -661,7 +449,6 @@ function ActionCenter({
           )
         }
 
-        // ── Paiement en attente ─────────────────────────────────────────────
         if (item.kind === 'paiement') {
           return (
             <div key={`pay-${r.id}`} className="bg-white rounded-2xl border border-violet-200 shadow-sm p-4">
@@ -698,15 +485,12 @@ function ActionCenter({
 // ── Page principale ───────────────────────────────────────────────────────────
 
 export default function LoueurDashboardPage() {
-  const [requests,   setRequests]      = useState<ReceivedRequest[]>([])
-  const [agencies,   setAgencies]      = useState<RentalAgencyRow[] | null>(null)
-  const [session,    setSessionState]  = useState<MockSession | null>(null)
-  const [loading,    setLoading]       = useState(true)
-  const [refreshing, setRefreshing]    = useState(false)
-  const [drawer,     setDrawer]        = useState<DrawerState | null>(null)
-  const [dossierOpen, setDossierOpen]  = useState(false)
-  const [search,     setSearch]        = useState('')
-  const [tab,        setTab]           = useState<FilterTab>('toutes')
+  const [requests,   setRequests]     = useState<ReceivedRequest[]>([])
+  const [agencies,   setAgencies]     = useState<RentalAgencyRow[] | null>(null)
+  const [session,    setSessionState] = useState<MockSession | null>(null)
+  const [loading,    setLoading]      = useState(true)
+  const [refreshing, setRefreshing]   = useState(false)
+  const [drawer,     setDrawer]       = useState<DrawerState | null>(null)
   const agenciesRef = useRef<RentalAgencyRow[]>([])
 
   async function load(agencies: RentalAgencyRow[]) {
@@ -736,24 +520,18 @@ export default function LoueurDashboardPage() {
 
   const today = format(new Date(), "EEEE d MMMM", { locale: fr })
 
-  // ── Visible requests (exclude taken by another loueur) ────────────────────
-
   const visible = useMemo(() =>
     requests.filter(r => !(r.confirmedAgencyId && r.confirmedAgencyId !== r.agencyId)),
     [requests]
   )
 
-  // ── Action items ──────────────────────────────────────────────────────────
-
   const actionItems = useMemo<ActionItemKind[]>(() => {
     const items: ActionItemKind[] = []
 
-    // 1. Overdues
     visible
       .filter(r => r.status === 'overdue')
       .forEach(r => items.push({ kind: 'retour', request: r }))
 
-    // 2. Extensions en attente
     visible
       .filter(r => !['overdue', 'litige_degat', 'cloturee', 'refusee'].includes(r.status))
       .forEach(r => {
@@ -761,42 +539,20 @@ export default function LoueurDashboardPage() {
         pending.forEach(ext => items.push({ kind: 'extension', request: r, extId: ext.id, days: ext.requestedDays }))
       })
 
-    // 3. Retours à confirmer (confirmee + date dépassée, non overdue)
     visible
       .filter(r => r.status === 'confirmee' && getEndDate(r) <= new Date())
       .forEach(r => items.push({ kind: 'retour', request: r }))
 
-    // 4. Nouvelles demandes
     visible
       .filter(r => ['envoyee', 'recue'].includes(r.status))
       .forEach(r => items.push({ kind: 'nouvelle', request: r }))
 
-    // 5. Paiements en attente
     visible
       .filter(r => r.status === 'honoree')
       .forEach(r => items.push({ kind: 'paiement', request: r }))
 
     return items
   }, [visible])
-
-  // ── Filtered dossiers ─────────────────────────────────────────────────────
-
-  const filtered = useMemo(() => {
-    return visible.filter(r => {
-      if (!matchesTab(r, tab)) return false
-      const q = search.toLowerCase()
-      return !q
-        || r.dossierNumber.toLowerCase().includes(q)
-        || r.sinistre.lastName.toLowerCase().includes(q)
-        || r.sinistre.firstName.toLowerCase().includes(q)
-        || r.location.address.toLowerCase().includes(q)
-    })
-  }, [visible, tab, search])
-
-  const tabCount = (key: FilterTab) =>
-    key === 'toutes' ? visible.length : visible.filter(r => matchesTab(r, key)).length
-
-  // ── Header ────────────────────────────────────────────────────────────────
 
   const header = (
     <div className="flex items-start justify-between gap-3">
@@ -820,19 +576,14 @@ export default function LoueurDashboardPage() {
     </div>
   )
 
-  // ── Loading ───────────────────────────────────────────────────────────────
-
   if (loading) {
     return (
       <div className="flex flex-col gap-6">
         {header}
         <StatsSkeleton />
-        <CardSkeleton />
       </div>
     )
   }
-
-  // ── No agencies ───────────────────────────────────────────────────────────
 
   if (agencies !== null && agencies.length === 0) {
     return (
@@ -854,131 +605,33 @@ export default function LoueurDashboardPage() {
     )
   }
 
-  // ── Cockpit ───────────────────────────────────────────────────────────────
-
   return (
     <>
       <div className="flex flex-col gap-6">
 
         {header}
 
-        {/* Stats */}
         <RentalStats requests={visible} />
 
-        {/* Section : Actions du jour */}
-        {actionItems.length > 0 && (
-          <section>
-            <div className="flex items-center gap-2 mb-3">
-              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Actions requises</h2>
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Actions requises</h2>
+            {actionItems.length > 0 && (
               <span className="text-xs font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full tabular-nums">
                 {actionItems.length}
               </span>
-            </div>
-            <ActionCenter
-              items={actionItems}
-              requests={visible}
-              onRequestsChange={handleRequestUpdate}
-              onOpenDrawer={setDrawer}
-            />
-          </section>
-        )}
-
-        {/* Section : Pipeline Kanban */}
-        <section>
-          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Pipeline</h2>
-          <KanbanPipeline requests={visible} onAction={(r, mode) => setDrawer({ request: r, mode })} />
-        </section>
-
-        {/* Section : Tous les dossiers (collapsible) */}
-        <section>
-          <button
-            onClick={() => setDossierOpen(o => !o)}
-            className="flex items-center gap-2 w-full text-left mb-3 group"
-          >
-            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider group-hover:text-brand-600 transition-colors">
-              Tous les dossiers
-            </h2>
-            <span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full tabular-nums">
-              {visible.length}
-            </span>
-            <span className="ml-auto text-slate-400 group-hover:text-slate-600 transition-colors">
-              {dossierOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </span>
-          </button>
-
-          {dossierOpen && (
-            <div className="flex flex-col gap-4">
-              {/* Recherche */}
-              <div className="relative">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                <input
-                  type="search"
-                  aria-label="Rechercher une demande"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Dossier, sinistré, adresse…"
-                  className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 transition-all"
-                />
-              </div>
-
-              {/* Tabs */}
-              <div className="flex overflow-x-auto scrollbar-none border-b border-slate-200">
-                {TABS.map(t => {
-                  const count  = tabCount(t.key)
-                  const active = tab === t.key
-                  return (
-                    <button
-                      key={t.key}
-                      onClick={() => setTab(t.key)}
-                      className={[
-                        'shrink-0 flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-all whitespace-nowrap',
-                        active
-                          ? 'border-brand-500 text-brand-700'
-                          : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300',
-                      ].join(' ')}
-                    >
-                      {t.label}
-                      <span className={[
-                        'text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center tabular-nums',
-                        active ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-500',
-                      ].join(' ')}>
-                        {count}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Cards */}
-              {filtered.length === 0 ? (
-                <div className="flex flex-col items-center py-12 text-center gap-3">
-                  <Search className="w-7 h-7 text-slate-300" />
-                  <div>
-                    <p className="font-semibold text-slate-700 text-sm">
-                      {search ? 'Aucun résultat' : 'Aucune demande dans cette catégorie'}
-                    </p>
-                    {search && (
-                      <button
-                        onClick={() => setSearch('')}
-                        className="text-sm font-semibold text-brand-600 hover:text-brand-700 underline underline-offset-2 mt-2"
-                      >
-                        Effacer
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {filtered.map(r => <RentalRequestCard key={r.id} request={r} />)}
-                </div>
-              )}
-            </div>
-          )}
+            )}
+          </div>
+          <ActionCenter
+            items={actionItems}
+            requests={visible}
+            onRequestsChange={handleRequestUpdate}
+            onOpenDrawer={setDrawer}
+          />
         </section>
 
       </div>
 
-      {/* Drawer — seulement pour "Répondre" */}
       <LoueurOperationsDrawer
         state={drawer}
         onClose={() => setDrawer(null)}
@@ -991,7 +644,7 @@ export default function LoueurDashboardPage() {
   )
 }
 
-// ── Skeletons ─────────────────────────────────────────────────────────────────
+// ── Skeleton ──────────────────────────────────────────────────────────────────
 
 function StatsSkeleton() {
   return (
@@ -1002,29 +655,6 @@ function StatsSkeleton() {
           <div className="space-y-2">
             <div className="h-8 w-10 bg-slate-200 rounded" />
             <div className="h-3 w-16 bg-slate-100 rounded" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function CardSkeleton() {
-  return (
-    <div className="flex flex-col gap-3">
-      {[...Array(3)].map((_, i) => (
-        <div key={i} className="flex bg-white rounded-2xl border border-slate-100 overflow-hidden animate-pulse">
-          <div className="w-1 bg-slate-200 shrink-0" />
-          <div className="flex-1 p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="h-5 w-20 bg-slate-200 rounded" />
-              <div className="h-5 w-16 bg-slate-100 rounded-full" />
-            </div>
-            <div className="h-4 w-40 bg-slate-200 rounded" />
-            <div className="flex gap-4">
-              <div className="h-3 w-28 bg-slate-100 rounded" />
-              <div className="h-3 w-20 bg-slate-100 rounded" />
-            </div>
           </div>
         </div>
       ))}

@@ -7,7 +7,7 @@ import { Users, MapPin, CalendarClock, UserPlus, BarChart2, CreditCard, LogOut, 
 import { signOut }     from '@/services/authService'
 
 const NAV = [
-  { href: '/admin/operations',                icon: Zap,           label: 'Opérations',          exact: false, critical: true },
+  { href: '/admin/operations',                icon: Zap,           label: 'Pipeline',            exact: false, critical: true },
   { href: '/admin/reservations',              icon: CalendarClock, label: 'Réservations',        exact: false },
   { href: '/admin/finance',                   icon: CreditCard,    label: 'Finance',             exact: false },
   { href: '/admin/demandes-acces',            icon: UserPlus,      label: 'Demandes d\'accès',   exact: false },

@@ -55,13 +55,13 @@ interface NavItem {
 
 const NAV: Record<'assisteur' | 'loueur', NavItem[]> = {
   assisteur: [
-    { href: '/assisteur/operations',         icon: 'zap',       label: 'Opérations',      criticalDot: true },
+    { href: '/assisteur/pipeline',           icon: 'zap',       label: 'Pipeline',        criticalDot: true },
     { href: '/assisteur',                    icon: 'dashboard', label: 'Tableau de bord', exact: true },
     { href: '/assisteur/nouvelle-demande',   icon: 'plus',      label: 'Nouvelle demande', cta: true  },
     { href: '/assisteur/notifications',      icon: 'bell',      label: 'Notifications',   hasBadge: true },
   ],
   loueur: [
-    { href: '/loueur/operations',     icon: 'zap',       label: 'Opérations',      criticalDot: true },
+    { href: '/loueur/pipeline',       icon: 'zap',       label: 'Pipeline',        criticalDot: true },
     { href: '/loueur/dashboard',      icon: 'dashboard', label: 'Tableau de bord', exact: true },
     { href: '/loueur/notifications',  icon: 'bell',      label: 'Notifications',   hasBadge: true },
     { href: '/loueur/profil',         icon: 'building',  label: 'Mon profil'                   },
