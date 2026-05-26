@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { AlertTriangle, RotateCcw, X } from 'lucide-react'
 import { getSession }             from '@/services/currentSessionService'
 import { AssistanceRequestForm }  from '@/components/assisteur/AssistanceRequestForm'
 import { MatchedCompanyList }     from '@/components/assisteur/MatchedCompanyList'
@@ -10,6 +11,9 @@ import { getMatchingResults }     from '@/services/matchingService'
 import { getRentalCompanyById }   from '@/services/rentalCompanyService'
 import { sendRequest }            from '@/services/requestService'
 import { addDocument }            from '@/services/documentService'
+import { saveDraft, loadDraft, clearDraft, isDraftExpired } from '@/lib/formDraft'
+import type { StoredDraft }       from '@/lib/formDraft'
+import type { FormValues }        from '@/components/assisteur/AssistanceRequestForm'
 import type { RequestFormInput, AssistanceRequest } from '@/types/request'
 import type { RentalCompany }     from '@/types/rentalCompany'
 import type { MatchingResult }    from '@/types/matching'
@@ -45,6 +49,26 @@ export default function NouvelleDemandePage() {
   const [confirmedRequest, setConfirmedRequest]   = useState<AssistanceRequest | null>(null)
   const [confirmedCompanies, setConfirmedCompanies] = useState<RentalCompany[]>([])
   const [documentUploaded, setDocumentUploaded]   = useState(false)
+
+  const [draft, setDraft]               = useState<StoredDraft | null>(null)
+  const [draftDismissed, setDraftDismissed] = useState(false)
+  const [appliedDraft, setAppliedDraft] = useState<StoredDraft | null>(null)
+
+  useEffect(() => {
+    const stored = loadDraft()
+    if (stored) setDraft(stored)
+  }, [])
+
+  function handleResumeDraft() {
+    setAppliedDraft(draft)
+    setDraftDismissed(true)
+  }
+
+  function handleDismissDraft() {
+    clearDraft()
+    setDraft(null)
+    setDraftDismissed(true)
+  }
 
   // Step 1 → 2
   async function handleFormSubmit(input: RequestFormInput) {
@@ -91,6 +115,8 @@ export default function NouvelleDemandePage() {
         ...(targetPrice             ? { targetPricePerDay: targetPrice }    : {}),
       }
       const request = await sendRequest(input, companyIds)
+      clearDraft()
+      setDraft(null)
       if (coverageFile) {
         await addDocument({
           file:      coverageFile,
@@ -117,6 +143,10 @@ export default function NouvelleDemandePage() {
   }
 
   function handleNewRequest() {
+    clearDraft()
+    setDraft(null)
+    setDraftDismissed(false)
+    setAppliedDraft(null)
     setStep('form')
     setRequestInput(null)
     setMatchingResults([])
@@ -151,7 +181,20 @@ export default function NouvelleDemandePage() {
               title="Nouvelle demande"
               subtitle="Renseignez les détails de la situation pour trouver les meilleurs loueurs disponibles."
             />
-            <AssistanceRequestForm accountType={accountType} onSubmit={handleFormSubmit} loading={loading} />
+            {draft && !draftDismissed && (
+              <DraftBanner
+                draft={draft}
+                onResume={handleResumeDraft}
+                onDismiss={handleDismissDraft}
+              />
+            )}
+            <AssistanceRequestForm
+              accountType={accountType}
+              onSubmit={handleFormSubmit}
+              loading={loading}
+              initialValues={appliedDraft?.values}
+              onChange={saveDraft}
+            />
           </>
         )}
 
@@ -193,6 +236,65 @@ export default function NouvelleDemandePage() {
             onNewRequest={handleNewRequest}
           />
         )}
+      </div>
+    </div>
+  )
+}
+
+function DraftBanner({
+  draft, onResume, onDismiss,
+}: { draft: StoredDraft; onResume: () => void; onDismiss: () => void }) {
+  const expired = isDraftExpired(draft)
+  const savedAt = new Date(draft.savedAt)
+  const label   = savedAt.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+
+  return (
+    <div className={`mb-5 rounded-xl border px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 ${
+      expired
+        ? 'bg-amber-50 border-amber-200'
+        : 'bg-brand-50 border-brand-200'
+    }`}>
+      <div className="flex items-start gap-2 flex-1 min-w-0">
+        {expired
+          ? <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+          : <RotateCcw     className="w-4 h-4 text-brand-500 shrink-0 mt-0.5" />
+        }
+        <div className="min-w-0">
+          <p className={`text-sm font-semibold leading-tight ${expired ? 'text-amber-700' : 'text-brand-700'}`}>
+            Brouillon enregistré
+          </p>
+          <p className={`text-xs mt-0.5 ${expired ? 'text-amber-600' : 'text-brand-500'}`}>
+            {expired
+              ? `Sauvegardé le ${label} — la date de besoin est dépassée`
+              : `Sauvegardé le ${label}`
+            }
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {!expired && (
+          <button
+            type="button"
+            onClick={onResume}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition-colors"
+          >
+            Reprendre
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onDismiss}
+          className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+            expired
+              ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+              : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'
+          }`}
+        >
+          Ignorer
+        </button>
+        <button type="button" onClick={onDismiss} className="text-slate-400 hover:text-slate-600">
+          <X className="w-4 h-4" />
+        </button>
       </div>
     </div>
   )

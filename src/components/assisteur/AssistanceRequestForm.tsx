@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { addDays, format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useForm, useWatch } from 'react-hook-form'
@@ -27,7 +27,7 @@ const VEHICLE_CATEGORY_ENUM = [
 
 // ── Static form value type ────────────────────────────────────────────────────
 
-type FormValues = {
+export type FormValues = {
   requestType:       'immediate' | 'planifiee'
   dossierNumber:     string
   referenceNumber?:  string
@@ -85,15 +85,19 @@ const ACCOUNT_CONFIG = {
 // ── Composant ─────────────────────────────────────────────────────────────────
 
 interface Props {
-  accountType?: AccountType
-  onSubmit:     (input: RequestFormInput) => void
-  loading:      boolean
+  accountType?:   AccountType
+  onSubmit:       (input: RequestFormInput) => void
+  loading:        boolean
+  initialValues?: Partial<FormValues>
+  onChange?:      (values: Partial<FormValues>) => void
 }
 
-export function AssistanceRequestForm({ onSubmit, loading, accountType = 'assistance' }: Props) {
+export function AssistanceRequestForm({ onSubmit, loading, accountType = 'assistance', initialValues, onChange }: Props) {
   const [geocodeError, setGeocodeError]           = useState<string | null>(null)
   const [geocoding, setGeocoding]                 = useState(false)
-  const [hasInsuranceCoverage, setHasInsuranceCoverage] = useState(false)
+  const [hasInsuranceCoverage, setHasInsuranceCoverage] = useState(
+    initialValues?.creditType !== undefined ? initialValues.creditType !== 'client' : false,
+  )
 
   const cfg = ACCOUNT_CONFIG[accountType]
 
@@ -124,11 +128,19 @@ export function AssistanceRequestForm({ onSubmit, loading, accountType = 'assist
     control,
     setValue,
     resetField,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver:      zodResolver(schema),
-    defaultValues: { durationDays: 3, creditType: 'full', requestType: 'immediate' },
+    defaultValues: { durationDays: 3, creditType: 'full', requestType: 'immediate', ...initialValues },
   })
+
+  // Persist draft on every field change
+  useEffect(() => {
+    if (!onChange) return
+    const { unsubscribe } = watch(values => onChange(values))
+    return unsubscribe
+  }, [watch, onChange])
 
   const creditType      = useWatch({ control, name: 'creditType' })
   const vehicleGroup    = useWatch({ control, name: 'vehicleGroup' })
