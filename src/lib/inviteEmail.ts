@@ -10,51 +10,85 @@ export function buildResetEmailHtml({
   return `<!DOCTYPE html>
 <html lang="fr">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:40px 16px;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
 
-        <!-- Logo -->
-        <tr><td style="padding-bottom:32px;text-align:center;">
-          <span style="font-size:22px;font-weight:900;color:#0f172a;letter-spacing:-0.5px;">Drives<span style="color:#ff6b35;">On</span></span>
-        </td></tr>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8fafc;padding:32px 16px">
+<tr><td align="center">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px">
 
-        <!-- Card -->
-        <tr><td style="background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;padding:40px 36px;">
+  <!-- Brand pill -->
+  <tr>
+    <td align="center" style="padding-bottom:18px">
+      <span style="display:inline-block;background:#2B45D4;color:#fff;font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;padding:6px 16px;border-radius:20px">
+        DRIVES ON
+      </span>
+    </td>
+  </tr>
 
-          <h1 style="margin:0 0 16px;font-size:22px;font-weight:900;color:#0f172a;line-height:1.3;">
-            Accédez à votre espace
-          </h1>
-          <p style="margin:0 0 28px;font-size:15px;color:#64748b;line-height:1.6;">
-            Bonjour${fullName ? ` ${fullName}` : ''},<br><br>
-            Cliquez sur le bouton ci-dessous pour définir votre mot de passe et accéder à votre espace Drives On.
-          </p>
+  <!-- Card -->
+  <tr>
+    <td style="background:#ffffff;border-radius:20px;overflow:hidden">
 
-          <!-- CTA -->
-          <table cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">
-            <tr><td align="center" style="background:#ff6b35;border-radius:12px;">
-              <a href="${resetLink}"
-                 style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:-0.2px;">
-                Définir mon mot de passe →
-              </a>
-            </td></tr>
-          </table>
-
-          <p style="margin:0;font-size:12px;color:#94a3b8;text-align:center;line-height:1.6;">
-            Ce lien est valable <strong>24 heures</strong>. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
-          </p>
-
-        </td></tr>
-
-        <!-- Footer -->
-        <tr><td style="padding-top:24px;text-align:center;">
-          <p style="margin:0;font-size:11px;color:#94a3b8;">© ${new Date().getFullYear()} Drives On — Tous droits réservés</p>
-        </td></tr>
-
+      <!-- Header -->
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="background:linear-gradient(135deg,#2B45D4,#6B5DD3);padding:30px 32px 28px">
+            <p style="margin:0 0 6px;color:rgba(255,255,255,.55);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Accès sécurisé</p>
+            <p style="margin:0;color:#ffffff;font-size:26px;font-weight:800;line-height:1.2">Définissez votre<br>mot de passe</p>
+          </td>
+        </tr>
       </table>
-    </td></tr>
-  </table>
+
+      <!-- Body -->
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding:28px 32px">
+
+            <p style="margin:0 0 24px;font-size:15px;color:#475569;line-height:1.7">
+              Bonjour${fullName ? ` <strong style="color:#0f172a">${fullName}</strong>` : ''},<br>
+              Cliquez sur le bouton ci-dessous pour définir votre mot de passe et accéder à votre espace DRIVES ON.
+            </p>
+
+            <!-- CTA -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" style="padding-bottom:14px">
+                  <a href="${resetLink}"
+                     style="display:inline-block;background:linear-gradient(135deg,#2B45D4,#6B5DD3);color:#ffffff;padding:16px 44px;border-radius:50px;text-decoration:none;font-weight:800;font-size:15px;letter-spacing:.01em;box-shadow:0 8px 24px rgba(43,69,212,0.25)">
+                    Définir mon mot de passe &nbsp;→
+                  </a>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.6">
+                    Ce lien est valable <strong>24 heures</strong>. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
+                  </p>
+                </td>
+              </tr>
+            </table>
+
+          </td>
+        </tr>
+      </table>
+
+    </td>
+  </tr>
+
+  <!-- Footer -->
+  <tr>
+    <td align="center" style="padding-top:22px">
+      <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.8">
+        DRIVES ON — Plateforme d'assistance sinistres<br>
+        © ${new Date().getFullYear()} Drives On — Tous droits réservés
+      </p>
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+
 </body>
 </html>`
 }
@@ -93,57 +127,91 @@ export function buildInviteEmailHtml({
   role:       'loueur' | 'assisteur'
   inviteLink: string
 }): string {
-  const roleLabel = role === 'loueur' ? 'Loueur' : 'Assisteur'
+  const roleLabel    = role === 'loueur' ? 'Loueur' : 'Assisteur'
+  const roleSubtitle = role === 'loueur' ? 'Espace Loueur indépendant' : 'Espace Professionnel demandeur'
 
   return `<!DOCTYPE html>
 <html lang="fr">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:40px 16px;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
 
-        <!-- Logo -->
-        <tr><td style="padding-bottom:32px;text-align:center;">
-          <span style="font-size:22px;font-weight:900;color:#0f172a;letter-spacing:-0.5px;">Drives<span style="color:#ff6b35;">On</span></span>
-        </td></tr>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8fafc;padding:32px 16px">
+<tr><td align="center">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px">
 
-        <!-- Card -->
-        <tr><td style="background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;padding:40px 36px;">
+  <!-- Brand pill -->
+  <tr>
+    <td align="center" style="padding-bottom:18px">
+      <span style="display:inline-block;background:#2B45D4;color:#fff;font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;padding:6px 16px;border-radius:20px">
+        DRIVES ON
+      </span>
+    </td>
+  </tr>
 
-          <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#ff6b35;text-transform:uppercase;letter-spacing:1px;">${roleLabel}</p>
-          <h1 style="margin:0 0 16px;font-size:22px;font-weight:900;color:#0f172a;line-height:1.3;">
-            Votre accès Drives On est prêt
-          </h1>
-          <p style="margin:0 0 28px;font-size:15px;color:#64748b;line-height:1.6;">
-            Bonjour ${fullName},<br><br>
-            L'équipe Drives On a validé votre demande de partenariat. Cliquez sur le bouton ci-dessous pour définir votre mot de passe et accéder à votre espace <strong>${roleLabel}</strong>.
-          </p>
+  <!-- Card -->
+  <tr>
+    <td style="background:#ffffff;border-radius:20px;overflow:hidden">
 
-          <!-- CTA -->
-          <table cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">
-            <tr><td align="center" style="background:#ff6b35;border-radius:12px;">
-              <a href="${inviteLink}"
-                 style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:-0.2px;">
-                Accéder à mon espace →
-              </a>
-            </td></tr>
-          </table>
-
-          <p style="margin:0;font-size:12px;color:#94a3b8;text-align:center;line-height:1.6;">
-            Ce lien est valable <strong>24 heures</strong>. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
-          </p>
-
-        </td></tr>
-
-        <!-- Footer -->
-        <tr><td style="padding-top:24px;text-align:center;">
-          <p style="margin:0;font-size:11px;color:#94a3b8;">© ${new Date().getFullYear()} Drives On — Tous droits réservés</p>
-        </td></tr>
-
+      <!-- Header -->
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="background:linear-gradient(135deg,#2B45D4,#6B5DD3);padding:30px 32px 28px">
+            <p style="margin:0 0 6px;color:rgba(255,255,255,.55);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">${roleSubtitle}</p>
+            <p style="margin:0;color:#ffffff;font-size:26px;font-weight:800;line-height:1.2">Votre accès<br>est prêt</p>
+          </td>
+        </tr>
       </table>
-    </td></tr>
-  </table>
+
+      <!-- Body -->
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding:28px 32px">
+
+            <p style="margin:0 0 24px;font-size:15px;color:#475569;line-height:1.7">
+              Bonjour <strong style="color:#0f172a">${fullName}</strong>,<br>
+              L'équipe DRIVES ON a validé votre demande de partenariat. Cliquez sur le bouton ci-dessous pour définir votre mot de passe et accéder à votre espace <strong style="color:#2B45D4">${roleLabel}</strong>.
+            </p>
+
+            <!-- CTA -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" style="padding-bottom:14px">
+                  <a href="${inviteLink}"
+                     style="display:inline-block;background:linear-gradient(135deg,#2B45D4,#6B5DD3);color:#ffffff;padding:16px 44px;border-radius:50px;text-decoration:none;font-weight:800;font-size:15px;letter-spacing:.01em;box-shadow:0 8px 24px rgba(43,69,212,0.25)">
+                    Accéder à mon espace &nbsp;→
+                  </a>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.6">
+                    Ce lien est valable <strong>24 heures</strong>. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
+                  </p>
+                </td>
+              </tr>
+            </table>
+
+          </td>
+        </tr>
+      </table>
+
+    </td>
+  </tr>
+
+  <!-- Footer -->
+  <tr>
+    <td align="center" style="padding-top:22px">
+      <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.8">
+        DRIVES ON — Plateforme d'assistance sinistres<br>
+        © ${new Date().getFullYear()} Drives On — Tous droits réservés
+      </p>
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+
 </body>
 </html>`
 }

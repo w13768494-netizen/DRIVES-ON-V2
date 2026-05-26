@@ -31,11 +31,11 @@ function addDays(date: Date | string, days: number): Date {
 }
 
 function row(label: string, value: string, shaded = false): string {
-  const bg = shaded ? 'background:#fafaf8;' : ''
+  const bg = shaded ? 'background:#f8fafc;' : ''
   return `
     <tr>
-      <td style="${bg}padding:12px 18px;color:#78716c;font-size:13px;border-bottom:1px solid #f0ebe5;width:44%">${label}</td>
-      <td style="${bg}padding:12px 18px;text-align:right;color:#1c1917;font-size:13px;font-weight:600;border-bottom:1px solid #f0ebe5">${value}</td>
+      <td style="${bg}padding:12px 18px;color:#64748b;font-size:13px;border-bottom:1px solid #e2e8f0;width:44%">${label}</td>
+      <td style="${bg}padding:12px 18px;text-align:right;color:#0f172a;font-size:13px;font-weight:600;border-bottom:1px solid #e2e8f0">${value}</td>
     </tr>`
 }
 
@@ -168,9 +168,9 @@ export function buildLoueurEmailHtml(p: LoueurEmailParams): string {
   return `<!DOCTYPE html>
 <html lang="fr">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#ede8e3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
 
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ede8e3;padding:32px 16px">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8fafc;padding:32px 16px">
 <tr><td align="center">
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px">
 
@@ -203,8 +203,8 @@ export function buildLoueurEmailHtml(p: LoueurEmailParams): string {
           <td style="padding:28px 32px">
 
             <!-- Greeting -->
-            <p style="margin:0 0 24px;font-size:15px;color:#44403c;line-height:1.7">
-              Bonjour <strong style="color:#1c1917">${p.agencyName}</strong>,<br>
+            <p style="margin:0 0 24px;font-size:15px;color:#475569;line-height:1.7">
+              Bonjour <strong style="color:#0f172a">${p.agencyName}</strong>,<br>
               une demande vous a été assignée. Répondez dès que possible pour la prendre en charge.
             </p>
 
@@ -213,10 +213,10 @@ export function buildLoueurEmailHtml(p: LoueurEmailParams): string {
             ${earningsBlock}
 
             <!-- Section title -->
-            <p style="margin:0 0 12px;font-size:11px;font-weight:700;color:#a8a29e;text-transform:uppercase;letter-spacing:.1em">Détails de la mission</p>
+            <p style="margin:0 0 12px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.1em">Détails de la mission</p>
 
             <!-- Details table -->
-            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1.5px solid #e7e2dd;border-radius:14px;overflow:hidden;margin-bottom:28px">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1.5px solid #e2e8f0;border-radius:14px;overflow:hidden;margin-bottom:28px">
               ${row('<span style="font-family:monospace;font-size:11px;color:#a8a29e">N°</span> Dossier', `<span style="font-family:monospace;font-weight:700;color:#1c1917">${p.dossierNumber}</span>`, true)}
               ${row('📍 Lieu du sinistre', p.address)}
               ${row('🚗 Catégorie véhicule', p.vehicleLabel, true)}
@@ -231,14 +231,14 @@ export function buildLoueurEmailHtml(p: LoueurEmailParams): string {
               <tr>
                 <td align="center" style="padding-bottom:14px">
                   <a href="${p.requestUrl}"
-                     style="display:inline-block;background:#ea580c;color:#ffffff;padding:16px 44px;border-radius:50px;text-decoration:none;font-weight:800;font-size:15px;letter-spacing:.01em">
+                     style="display:inline-block;background:linear-gradient(135deg,#2B45D4,#6B5DD3);color:#ffffff;padding:16px 44px;border-radius:50px;text-decoration:none;font-weight:800;font-size:15px;letter-spacing:.01em;box-shadow:0 8px 24px rgba(43,69,212,0.25)">
                     Voir la demande &nbsp;→
                   </a>
                 </td>
               </tr>
               <tr>
                 <td align="center">
-                  <p style="margin:0;font-size:12px;color:#a8a29e">
+                  <p style="margin:0;font-size:12px;color:#94a3b8">
                     Acceptez ou refusez depuis votre espace DRIVES ON.
                   </p>
                 </td>
@@ -255,9 +255,9 @@ export function buildLoueurEmailHtml(p: LoueurEmailParams): string {
   <!-- Footer -->
   <tr>
     <td align="center" style="padding-top:22px">
-      <p style="margin:0;font-size:11px;color:#a8a29e;line-height:1.8">
+      <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.8">
         DRIVES ON — Plateforme d'assistance sinistres<br>
-        <a href="${appUrl}" style="color:#a8a29e;text-decoration:none">${appUrl}</a>
+        <a href="${appUrl}" style="color:#94a3b8;text-decoration:none">${appUrl}</a>
       </p>
     </td>
   </tr>
