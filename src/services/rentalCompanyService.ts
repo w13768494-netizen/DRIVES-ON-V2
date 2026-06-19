@@ -7,7 +7,10 @@ import type { RentalAgencyRow }   from '@/services/rentalAgencyService'
 
 const USE_SUPABASE =
   typeof process.env.NEXT_PUBLIC_SUPABASE_URL === 'string' &&
-  process.env.NEXT_PUBLIC_SUPABASE_URL.startsWith('https://') &&
+  (
+    process.env.NEXT_PUBLIC_SUPABASE_URL.startsWith('https://') ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL.startsWith('http://')
+  ) &&
   !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('VOTRE')
 
 export interface GetNearbyCompaniesParams {

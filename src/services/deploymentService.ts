@@ -3,7 +3,10 @@ import { rowToDeploymentCity } from '@/types/deploymentCity'
 import type { DeploymentCity, DeploymentStatus } from '@/types/deploymentCity'
 
 const USE_SUPABASE =
-  process.env.NEXT_PUBLIC_SUPABASE_URL?.startsWith('https://') &&
+  (
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.startsWith('https://') ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.startsWith('http://')
+  ) &&
   !process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('VOTRE')
 
 export async function getAllDeploymentCities(): Promise<DeploymentCity[]> {
