@@ -5,6 +5,7 @@ import { calculatePricing }               from '@/lib/rentalPricing'
 import { randomUUID }                     from 'crypto'
 import type { AdminPaymentStatus }        from '@/types/adminReservation'
 import type { ExtensionRequest }          from '@/types/requestExtension'
+import { logger }                         from '@/lib/logger'
 
 type FinanceAction =
   | 'recalculate'
@@ -199,7 +200,7 @@ export async function POST(
     },
     metadata: { finance_action: action, reason: reason?.trim() || null },
   }).then(({ error }) => {
-    if (error) console.error('[admin/finance] audit log:', error.message)
+    if (error) logger.error('[admin/finance] audit log:', error.message)
   })
 
   const opStatus_check = opStatus

@@ -5,6 +5,7 @@ import { randomUUID }                     from 'crypto'
 import type { RequestStatus }             from '@/types/request'
 import { REQUEST_DOCUMENT_TYPE_LABELS }   from '@/types/requestDocument'
 import type { RequestDocumentType }       from '@/types/requestDocument'
+import { logger }                         from '@/lib/logger'
 
 // Whitelist stricte des transitions admin autorisées
 type Transition = { from: RequestStatus; to: RequestStatus; label: string }
@@ -190,7 +191,7 @@ export async function POST(
       transition: transition.label,
     },
   }).then(({ error }) => {
-    if (error) console.error('[admin/status] audit log:', error.message)
+    if (error) logger.error('[admin/status] audit log:', error.message)
   })
 
   return NextResponse.json({ ok: true, fromStatus, toStatus })

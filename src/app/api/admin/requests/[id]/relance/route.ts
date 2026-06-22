@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin }                  from '@/lib/supabase/admin'
 import { requireAdmin }                   from '@/lib/requireAdmin'
 import { randomUUID }                     from 'crypto'
+import { logger }                         from '@/lib/logger'
 
 const ANTI_SPAM_MINUTES = 30
 
@@ -74,7 +75,7 @@ export async function POST(
   for (const agencyId of agencyIds) {
     const agency = agencyMap.get(agencyId)
     if (!agency) {
-      console.warn('[admin/relance] agency orpheline ignorée:', agencyId)
+      logger.warn('[admin/relance] agency orpheline ignorée:', agencyId)
       continue
     }
     notifPayloads.push({
@@ -93,7 +94,7 @@ export async function POST(
       .from('notifications')
       .insert(notifPayloads)
     if (notifError)
-      console.error('[admin/relance] notifications insert:', notifError.message)
+      logger.error('[admin/relance] notifications insert:', notifError.message)
   }
 
   // ── Append timeline event ─────────────────────────────────────────────────────
@@ -116,7 +117,7 @@ export async function POST(
     .eq('id', requestId)
 
   if (updateError)
-    console.error('[admin/relance] timeline update:', updateError.message)
+    logger.error('[admin/relance] timeline update:', updateError.message)
 
   // ── Audit log (best-effort) ───────────────────────────────────────────────────
   await supabaseAdmin.from('admin_audit_logs').insert({
@@ -131,7 +132,7 @@ export async function POST(
       agency_ids:        agencyIds,
     },
   }).then(({ error }) => {
-    if (error) console.error('[admin/relance] audit log:', error.message)
+    if (error) logger.error('[admin/relance] audit log:', error.message)
   })
 
   return NextResponse.json({

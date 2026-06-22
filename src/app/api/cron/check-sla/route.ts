@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin }             from '@/lib/supabase/admin'
 import { sendEmail }                 from '@/lib/email'
+import { logger }                    from '@/lib/logger'
 
 // UUID réservé pour les actions système automatiques (non lié à un utilisateur réel)
 const SYSTEM_CRON_UUID = '00000000-0000-0000-0000-000000000001'
@@ -109,7 +110,7 @@ async function handleCron(req: NextRequest) {
     .in('status', ['envoyee', 'recue'])
 
   if (fetchErr) {
-    console.error('[cron/check-sla] fetch error:', fetchErr.message)
+    logger.error('[cron/check-sla] fetch error:', fetchErr.message)
     return NextResponse.json({ error: fetchErr.message }, { status: 500 })
   }
 
@@ -200,7 +201,7 @@ async function handleCron(req: NextRequest) {
           subject: `⏰ Rappel — Demande DRIVES ON #${row.dossier_number} en attente`,
           html:    buildRelanceHtml(agency.agency_name ?? 'Partenaire', row.dossier_number, requestUrl),
           text:    `Une demande DRIVES ON (#${row.dossier_number}) attend votre réponse : ${requestUrl}`,
-        }).catch(err => console.error(`[cron/check-sla] email loueur ${agencyId}:`, err))
+        }).catch(err => logger.error(`[cron/check-sla] email loueur ${agencyId}:`, err))
       }
     }
 
@@ -221,7 +222,7 @@ async function handleCron(req: NextRequest) {
         .from('notifications')
         .insert(notifInserts)
       if (notifErr) {
-        console.error(`[cron/check-sla] notif error pour ${row.id}:`, notifErr.message)
+        logger.error(`[cron/check-sla] notif error pour ${row.id}:`, notifErr.message)
       }
     }
 
@@ -235,11 +236,11 @@ async function handleCron(req: NextRequest) {
       after_json:  { relanceCount: relanceNum },
       metadata:    { source: 'cron/check-sla', requestType: row.request_type },
     }).then(({ error }) => {
-      if (error) console.error(`[cron/check-sla] audit log ${row.id}:`, error.message)
+      if (error) logger.error(`[cron/check-sla] audit log ${row.id}:`, error.message)
     })
   }
 
-  console.log(
+  logger.info(
     `[cron/check-sla] ${candidates.length} dossiers analysés — ` +
     `${relancedCount} relancé(s) — ${errors.length} erreur(s)`,
   )

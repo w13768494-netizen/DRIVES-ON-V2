@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin }             from '@/lib/supabase/admin'
 import { addDays }                   from 'date-fns'
 import type { ExtensionRequest }     from '@/types/requestExtension'
+import { logger }                    from '@/lib/logger'
 
 // UUID réservé pour les actions système automatiques (non lié à un utilisateur réel)
 const SYSTEM_CRON_UUID = '00000000-0000-0000-0000-000000000001'
@@ -61,7 +62,7 @@ async function handleCron(req: NextRequest) {
     .eq('status', 'confirmee')
 
   if (fetchErr) {
-    console.error('[cron/check-overdue] fetch error:', fetchErr.message)
+    logger.error('[cron/check-overdue] fetch error:', fetchErr.message)
     return NextResponse.json({ error: fetchErr.message }, { status: 500 })
   }
 
@@ -174,7 +175,7 @@ async function handleCron(req: NextRequest) {
         .from('notifications')
         .insert(notifInserts)
       if (notifErr) {
-        console.error(`[cron/check-overdue] notif error pour ${row.id}:`, notifErr.message)
+        logger.error(`[cron/check-overdue] notif error pour ${row.id}:`, notifErr.message)
       }
     }
 
@@ -188,11 +189,11 @@ async function handleCron(req: NextRequest) {
       after_json:  { status: 'overdue', overdue_at: nowIso },
       metadata:    { source: 'cron/check-overdue' },
     }).then(({ error }) => {
-      if (error) console.error(`[cron/check-overdue] audit log ${row.id}:`, error.message)
+      if (error) logger.error(`[cron/check-overdue] audit log ${row.id}:`, error.message)
     })
   }
 
-  console.log(
+  logger.info(
     `[cron/check-overdue] ${candidates.length} confirmee analysés — ` +
     `${successCount}/${overdueRows.length} passés en overdue — ` +
     `${errors.length} erreur(s)`,

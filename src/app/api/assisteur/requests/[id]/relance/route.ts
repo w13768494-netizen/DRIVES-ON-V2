@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin }                  from '@/lib/supabase/admin'
 import { requireAuth }                    from '@/lib/requireAuth'
 import { randomUUID }                     from 'crypto'
+import { logger }                         from '@/lib/logger'
 
 const ANTI_SPAM_MINUTES = 30
 
@@ -103,7 +104,7 @@ export async function POST(
       .from('notifications')
       .insert(notifPayloads)
     if (notifError)
-      console.error('[assisteur/relance] notifications insert:', notifError.message)
+      logger.error('[assisteur/relance] notifications insert:', notifError.message)
   }
 
   // ── Timeline event ────────────────────────────────────────────────────────────
@@ -122,7 +123,7 @@ export async function POST(
     .eq('id', requestId)
 
   if (updateError)
-    console.error('[assisteur/relance] timeline update:', updateError.message)
+    logger.error('[assisteur/relance] timeline update:', updateError.message)
 
   return NextResponse.json({
     ok:                true,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin }             from '@/lib/supabase/admin'
 import { requireAuth }               from '@/lib/requireAuth'
 import { canAccessRequest }          from '@/lib/documents/helpers'
+import { logger }                    from '@/lib/logger'
 
 // DELETE /api/documents/:id
 // Supprime un document : fichier Storage + métadonnée DB.
@@ -72,7 +73,7 @@ export async function DELETE(
       .remove([docRow.storage_path])
 
     if (storageError) {
-      console.error('[documents/delete] Storage remove error:', storageError.message)
+      logger.error('[documents/delete] Storage remove error:', storageError.message)
       // On continue : la métadonnée DB est supprimée même si Storage échoue,
       // pour éviter des entrées DB orphelines pointant vers un fichier déjà absent.
     }

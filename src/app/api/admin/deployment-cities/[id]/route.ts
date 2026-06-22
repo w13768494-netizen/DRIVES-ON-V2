@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin }             from '@/lib/supabase/admin'
 import type { DeploymentStatus }     from '@/types/deploymentCity'
 import { requireAdmin }              from '@/lib/requireAdmin'
+import { logger }                    from '@/lib/logger'
 
 const VALID_STATUSES: DeploymentStatus[] = ['active', 'deploying', 'planned', 'inactive']
 
@@ -35,10 +36,10 @@ export async function PATCH(
     .eq('id', id)
 
   if (error) {
-    console.error(`[deployment-cities] PATCH ${id}:`, error.message)
+    logger.error(`[deployment-cities] PATCH ${id}:`, error.message)
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
   }
 
-  console.log(`[deployment-cities] ${id} → ${status}`)
+  logger.info(`[deployment-cities] ${id} → ${status}`)
   return NextResponse.json({ ok: true })
 }

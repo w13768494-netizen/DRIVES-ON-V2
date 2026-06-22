@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin }            from '@/lib/supabase/admin'
 import { requireAuth }              from '@/lib/requireAuth'
 import * as Sentry                  from '@sentry/nextjs'
+import { logger }                   from '@/lib/logger'
 
 interface EventPayload {
   requestId:   string
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (!requestRow?.created_by_user_id) {
-    console.error(`[notify-assisteur] request ${requestId} not found or no created_by_user_id`)
+    logger.error(`[notify-assisteur] request ${requestId} not found or no created_by_user_id`)
     return NextResponse.json({ ok: false, error: 'request_not_found' }, { status: 404 })
   }
 
@@ -72,11 +73,11 @@ export async function POST(req: NextRequest) {
   })
 
   if (error) {
-    console.error('[notify-assisteur] insert error:', error.message)
+    logger.error('[notify-assisteur] insert error:', error.message)
     Sentry.captureException(error, { extra: { requestId, eventType } })
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
   }
 
-  console.log(`[notify-assisteur] ${eventType} → assisteur ${requestRow.created_by_user_id} pour demande ${requestId}`)
+  logger.info(`[notify-assisteur] ${eventType} → assisteur ${requestRow.created_by_user_id} pour demande ${requestId}`)
   return NextResponse.json({ ok: true })
 }

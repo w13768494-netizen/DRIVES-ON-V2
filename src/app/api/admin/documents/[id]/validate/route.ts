@@ -4,6 +4,7 @@ import { requireAdmin }                   from '@/lib/requireAdmin'
 import { randomUUID }                     from 'crypto'
 import { REQUEST_DOCUMENT_TYPE_LABELS }   from '@/types/requestDocument'
 import type { RequestDocumentType }       from '@/types/requestDocument'
+import { logger }                         from '@/lib/logger'
 
 // POST /api/admin/documents/[id]/validate
 // Body: { action: 'validate' | 'reject', note?: string }
@@ -99,7 +100,7 @@ export async function POST(
     after_json:  { validation_status: targetStatus },
     metadata:    { request_id: requestId, doc_type: docType, note: note?.trim() || null },
   }).then(({ error }) => {
-    if (error) console.error('[admin/documents/validate] audit log:', error.message)
+    if (error) logger.error('[admin/documents/validate] audit log:', error.message)
   })
 
   return NextResponse.json({ ok: true, action, documentId, newStatus: targetStatus })

@@ -8,6 +8,7 @@ import { buildLoueurEmailHtml, buildLoueurEmailText }      from '@/lib/loueurEma
 import { calculatePricing }                                from '@/lib/rentalPricing'
 import { getAppUrl }                                       from '@/lib/appUrl'
 import type { AssistanceRequest }                          from '@/types/request'
+import { logger }                                          from '@/lib/logger'
 
 export async function POST(req: NextRequest) {
   const auth = await requireAuth()
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
   const vehicleLabel = VEHICLE_CATEGORY_LABELS[request.vehicleCategory] ?? request.vehicleCategory
   const address      = request.location.address
 
-  console.log(`[notify-loueur] demande ${request.id} → ${agencyIds.length} agence(s)`)
+  logger.info(`[notify-loueur] demande ${request.id} → ${agencyIds.length} agence(s)`)
 
   let emailsSent   = 0
   let emailsFailed = 0
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
         request_id: request.id,
       })
       if (notifErr) {
-        console.error(`[notify-loueur] notif Supabase échouée pour ${agencyId}:`, notifErr.message)
+        logger.error(`[notify-loueur] notif Supabase échouée pour ${agencyId}:`, notifErr.message)
       }
     }
 
@@ -121,18 +122,18 @@ export async function POST(req: NextRequest) {
       })
 
       if (emailResult.ok) {
-        console.log(`[notify-loueur] email envoyé pour agence ${agencyId}`)
+        logger.info(`[notify-loueur] email envoyé pour agence ${agencyId}`)
         emailsSent++
       } else {
-        console.error(`[notify-loueur] email FAILED pour agence ${agencyId} : ${emailResult.error}`)
+        logger.error(`[notify-loueur] email FAILED pour agence ${agencyId} : ${emailResult.error}`)
         emailsFailed++
       }
     } else {
-      console.log(`[notify-loueur] agence ${agencyId} sans email — notification plateforme uniquement`)
+      logger.info(`[notify-loueur] agence ${agencyId} sans email — notification plateforme uniquement`)
     }
   }
 
-  console.log(`[notify-loueur] terminé — ${emailsSent} envoyé(s), ${emailsFailed} échec(s)`)
+  logger.info(`[notify-loueur] terminé — ${emailsSent} envoyé(s), ${emailsFailed} échec(s)`)
 
   if (emailsFailed > 0) {
     Sentry.captureEvent({
