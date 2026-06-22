@@ -5,10 +5,10 @@ const isDev = process.env.NODE_ENV === 'development'
 
 const CSP = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
+  `script-src 'self'${isDev ? " 'unsafe-inline' 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.supabase.co",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://nominatim.openstreetmap.org",
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://nominatim.openstreetmap.org${isDev ? ' http://127.0.0.1:54321 ws://127.0.0.1:54321' : ''}`,
   "font-src 'self'",
   "frame-src 'none'",
   "object-src 'none'",
