@@ -5,7 +5,10 @@ const isDev = process.env.NODE_ENV === 'development'
 
 const CSP = [
   "default-src 'self'",
-  `script-src 'self'${isDev ? " 'unsafe-inline' 'unsafe-eval'" : ''}`,
+  // 'unsafe-inline' reste requis en prod : Next.js 16 (App Router) injecte des
+  // scripts inline (bootstrap + flight RSC) sur chaque page SSR. Sans nonce ni
+  // SRI, les retirer casse l'hydratation. Ne durcir qu'avec une stratégie nonce/SRI.
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.supabase.co",
   `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://nominatim.openstreetmap.org${isDev ? ' http://127.0.0.1:54321 ws://127.0.0.1:54321' : ''}`,
