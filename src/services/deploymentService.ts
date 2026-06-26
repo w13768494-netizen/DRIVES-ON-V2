@@ -47,6 +47,33 @@ export async function getActiveCityIds(): Promise<string[] | null> {
   return (data ?? []).map((r: { id: string }) => r.id)
 }
 
+export type DeploymentZone = { latitude: number; longitude: number; radiusKm: number }
+
+/**
+ * Zones de couverture des villes actives, pour le gate géographique du matching.
+ * Retourne null si Supabase non configuré OU aucune ville active (pas de gate appliqué).
+ */
+export async function getActiveDeploymentZones(): Promise<DeploymentZone[] | null> {
+  if (!USE_SUPABASE) return null
+
+  const { data, error } = await supabase
+    .from('deployment_cities')
+    .select('latitude, longitude, cover_radius_km')
+    .eq('status', 'active')
+
+  if (error) {
+    console.error('[deploymentService] getActiveDeploymentZones:', error.message)
+    return null
+  }
+  if (!data || data.length === 0) return null
+
+  return data.map((c: { latitude: number; longitude: number; cover_radius_km: number }) => ({
+    latitude:  c.latitude,
+    longitude: c.longitude,
+    radiusKm:  c.cover_radius_km,
+  }))
+}
+
 export async function updateDeploymentCityStatus(
   id: string,
   status: DeploymentStatus,

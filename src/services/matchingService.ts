@@ -1,7 +1,7 @@
 import { MOCK_RENTAL_COMPANIES }         from '@/data/mockRentalCompanies'
 import { MOCK_VEHICLE_CATEGORY_OFFERS }  from '@/data/mockVehicleCategoryOffers'
 import { calculateDistance }             from '@/lib/distance'
-import { getActiveCityIds }              from '@/services/deploymentService'
+import { getActiveCityIds, getActiveDeploymentZones } from '@/services/deploymentService'
 import { getPriceForDuration }           from '@/lib/rentalPricing'
 import { supabase }                      from '@/lib/supabaseClient'
 import type { MatchingParams, MatchingResult, ScoreBreakdown } from '@/types/matching'
@@ -182,6 +182,14 @@ export async function getMatchingResults(params: MatchingParams): Promise<Matchi
 
 async function getMatchingResultsSupabase(params: MatchingParams): Promise<MatchingResult[]> {
   const { latitude, longitude, vehicleCategory, radiusKm = 50, durationDays } = params
+
+  // Gate de déploiement : hors zone d'une ville active → aucun loueur servi.
+  // Garde-fou : aucune ville active (zones === null) → pas de gate.
+  const zones = await getActiveDeploymentZones()
+  if (zones !== null &&
+      !zones.some(z => computeDistance(latitude, longitude, z.latitude, z.longitude) <= z.radiusKm)) {
+    return []
+  }
 
   const [agenciesRes, categoriesRes, deliveryRes] = await Promise.all([
     supabase.from('rental_agencies').select('*').eq('active', true).eq('is_available', true),
