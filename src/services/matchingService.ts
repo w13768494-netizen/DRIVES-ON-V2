@@ -63,9 +63,9 @@ export function computeMatchingScore(
     else if (stockEstimate >= 1) stockScore = 12
   }
   const categoryScore   = company.vehicleTypes.includes(category) ? 20 : 0
-  const reactivityScore = MOCK_REACTIVITY[company.id] ?? 5
-  const total = distanceScore + stockScore + categoryScore + reactivityScore
-  return { total, distance: distanceScore, stock: stockScore, category: categoryScore, reactivity: reactivityScore }
+  const reputationScore = MOCK_REACTIVITY[company.id] ?? 5
+  const total = distanceScore + stockScore + categoryScore + reputationScore
+  return { total, distance: distanceScore, stock: stockScore, category: categoryScore, reputation: reputationScore }
 }
 
 type PricingFields = Pick<MatchingResult, 'effectivePricePerDay' | 'effectiveTotalPrice' | 'hasForfait' | 'forfaitLabel' | 'tarifBracketLabel'>
@@ -118,6 +118,7 @@ function agencyToCompany(agency: RentalAgencyRow, avc: AgencyVehicleCategoryRow)
 }
 
 function computeScoreFromRow(
+  agency:     RentalAgencyRow,
   avc:        AgencyVehicleCategoryRow,
   distanceKm: number,
   radiusKm:   number,
@@ -127,13 +128,16 @@ function computeScoreFromRow(
   const available       = avc.available && (avc.actif ?? true) && effectiveStock > 0
   const stockScore      = !available ? 0 : effectiveStock >= 5 ? 30 : effectiveStock >= 3 ? 22 : effectiveStock >= 1 ? 12 : 0
   const categoryScore   = 20
-  const reactivityScore = 5
+  // Réputation réelle : score_total agence (0–100) → slot 0–10. Sans historique → 5 (neutre).
+  const reputationScore = agency.score_total != null
+    ? Math.round(Math.min(100, Math.max(0, agency.score_total)) / 10)
+    : 5
   return {
-    total:      distanceScore + stockScore + categoryScore + reactivityScore,
+    total:      distanceScore + stockScore + categoryScore + reputationScore,
     distance:   distanceScore,
     stock:      stockScore,
     category:   categoryScore,
-    reactivity: reactivityScore,
+    reputation: reputationScore,
   }
 }
 
@@ -238,7 +242,7 @@ async function getMatchingResultsSupabase(params: MatchingParams): Promise<Match
         distanceKm,
         stockEstimate:    effectiveStock,
         available:        true,
-        score:            computeScoreFromRow(avc, distanceKm, radiusKm),
+        score:            computeScoreFromRow(agency, avc, distanceKm, radiusKm),
         isRecommended:    false,
         modeleEquivalent: avc.modele_equivalent  ?? undefined,
         includedKmPerDay: avc.included_km_per_day > 0 ? avc.included_km_per_day : undefined,

@@ -21,6 +21,7 @@ export interface RentalAgencyRow {
   active:                   boolean
   created_at:               string
   external_id:              string | null
+  score_total:              number | null
 }
 
 /** Retourne les agences du loueur connecté (RLS filtre par owner_id = auth.uid()). */

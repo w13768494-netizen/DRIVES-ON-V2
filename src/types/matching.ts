@@ -14,7 +14,7 @@ export interface ScoreBreakdown {
   distance:   number  // 0–40
   stock:      number  // 0–30
   category:   number  // 0–20
-  reactivity: number  // 0–10
+  reputation: number  // 0–10 — dérivé du score_total agence (0–100), fallback 5 sans historique
 }
 
 export interface MatchingResult {
