@@ -7,6 +7,10 @@ ALTER TABLE "public"."request_documents"
   ADD COLUMN IF NOT EXISTS "validated_by"      uuid,
   ADD COLUMN IF NOT EXISTS "validation_note"   text;
 
+-- DROP avant ADD : ADD CONSTRAINT ne supporte pas IF NOT EXISTS → idempotence sur replay/reset
+ALTER TABLE "public"."request_documents"
+  DROP CONSTRAINT IF EXISTS "request_documents_validation_status_check";
+
 ALTER TABLE "public"."request_documents"
   ADD CONSTRAINT "request_documents_validation_status_check"
   CHECK ("validation_status" IN ('pending', 'valid', 'rejected'));
