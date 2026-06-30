@@ -1,13 +1,13 @@
-import { Mail, Phone, Clock, Edit2, ToggleLeft, ToggleRight } from 'lucide-react'
-import type { AssistanceUser, UserStats } from '@/types/assistanceUser'
+import { Mail, Edit2, ToggleLeft, ToggleRight } from 'lucide-react'
+import type { TeamMember, UserStats, AssistanceUserRole } from '@/types/assistanceUser'
 import { ASSISTANCE_USER_ROLE_LABELS, ASSISTANCE_USER_ROLE_COLORS } from '@/types/assistanceUser'
 
 interface Props {
-  user:    AssistanceUser
-  stats:   UserStats
-  canEdit: boolean
-  onEdit:  (user: AssistanceUser) => void
-  onToggleActive: (user: AssistanceUser) => void
+  member:         TeamMember
+  stats:          UserStats
+  canEdit:        boolean
+  onToggleActive: (member: TeamMember) => void
+  onChangeRole:   (id: string, teamRole: AssistanceUserRole) => void
 }
 
 function formatAvgResponse(ms: number | null): string {
@@ -17,89 +17,72 @@ function formatAvgResponse(ms: number | null): string {
   return `${Math.round(hours / 24)}j`
 }
 
-function initials(user: AssistanceUser) {
-  return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
+function initials(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/)
+  if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+  return fullName.slice(0, 2).toUpperCase()
 }
 
-function formatLastLogin(iso: string | undefined): string {
-  if (!iso) return 'Jamais'
-  const d = new Date(iso)
-  const now = new Date()
-  const diffH = Math.floor((now.getTime() - d.getTime()) / 3_600_000)
-  if (diffH < 1) return 'À l\'instant'
-  if (diffH < 24) return `Il y a ${diffH}h`
-  const diffD = Math.floor(diffH / 24)
-  if (diffD === 1) return 'Hier'
-  if (diffD < 7) return `Il y a ${diffD}j`
-  return d.toLocaleDateString('fr-FR')
-}
-
-export function AssistanceUserCard({ user, stats, canEdit, onEdit, onToggleActive }: Props) {
+export function AssistanceUserCard({ member, stats, canEdit, onToggleActive, onChangeRole }: Props) {
   return (
-    <div className={`bg-white rounded-2xl border p-5 space-y-4 transition-opacity ${!user.active ? 'opacity-60' : ''}`}>
+    <div className={`bg-white rounded-2xl border p-5 space-y-4 transition-opacity ${!member.isActive ? 'opacity-60' : ''}`}>
 
       {/* En-tête */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           {/* Avatar */}
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 ${
-            user.active ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-400'
+            member.isActive ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-400'
           }`}>
-            {initials(user)}
+            {initials(member.fullName)}
           </div>
 
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-semibold text-slate-800 text-sm">
-                {user.firstName} {user.lastName}
+                {member.fullName}
               </span>
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ASSISTANCE_USER_ROLE_COLORS[user.role]}`}>
-                {ASSISTANCE_USER_ROLE_LABELS[user.role]}
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ASSISTANCE_USER_ROLE_COLORS[member.teamRole]}`}>
+                {ASSISTANCE_USER_ROLE_LABELS[member.teamRole]}
               </span>
-              {!user.active && (
+              {!member.isActive && (
                 <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
                   Inactif
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-400 mt-0.5 font-mono">{user.username}</p>
+            <a href={`mailto:${member.email}`} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-brand-600 transition-colors mt-0.5">
+              <Mail className="w-3.5 h-3.5" />
+              {member.email}
+            </a>
           </div>
         </div>
 
         {canEdit && (
           <div className="flex items-center gap-1 shrink-0">
             <button
-              onClick={() => onToggleActive(user)}
-              title={user.active ? 'Désactiver' : 'Activer'}
+              onClick={() => onToggleActive(member)}
+              title={member.isActive ? 'Désactiver' : 'Activer'}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
             >
-              {user.active
+              {member.isActive
                 ? <ToggleRight className="w-5 h-5 text-green-500" />
                 : <ToggleLeft className="w-5 h-5" />
               }
             </button>
-            <button
-              onClick={() => onEdit(user)}
-              title="Modifier"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+            {/* Changement de rôle inline */}
+            <select
+              value={member.teamRole}
+              onChange={e => onChangeRole(member.id, e.target.value as AssistanceUserRole)}
+              title="Changer le rôle"
+              className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-500 hover:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-300 bg-white cursor-pointer"
             >
-              <Edit2 className="w-4 h-4" />
-            </button>
+              <option value="admin">Administrateur</option>
+              <option value="superviseur">Superviseur</option>
+              <option value="charge_assistance">Chargé d&apos;assistance</option>
+            </select>
+            <Edit2 className="w-4 h-4 text-slate-300 shrink-0" />
           </div>
-        )}
-      </div>
-
-      {/* Coordonnées */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
-        <a href={`mailto:${user.email}`} className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand-600 transition-colors">
-          <Mail className="w-3.5 h-3.5" />
-          {user.email}
-        </a>
-        {user.phone && (
-          <span className="flex items-center gap-1.5 text-xs text-slate-500">
-            <Phone className="w-3.5 h-3.5" />
-            {user.phone}
-          </span>
         )}
       </div>
 
@@ -109,12 +92,6 @@ export function AssistanceUserCard({ user, stats, canEdit, onEdit, onToggleActiv
         <Stat label="Confirmées" value={stats.confirmee}  color="text-green-600" />
         <Stat label="Refusées"   value={stats.refusee}    color="text-red-500" />
         <Stat label="Moy. réponse" value={formatAvgResponse(stats.avgResponseMs)} color="text-sky-600" />
-      </div>
-
-      {/* Dernière connexion */}
-      <div className="flex items-center gap-1.5 text-xs text-slate-400">
-        <Clock className="w-3.5 h-3.5" />
-        Dernière connexion : {formatLastLogin(user.lastLoginAt)}
       </div>
     </div>
   )

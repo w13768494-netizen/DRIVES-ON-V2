@@ -10,7 +10,7 @@ import {
   Bell, CalendarPlus, FileWarning, Building2, CalendarDays, X, ChevronRight,
 } from 'lucide-react'
 import { getAllRequests }                from '@/services/requestService'
-import { getAllUsers, filterRequestsForUser } from '@/services/assistanceUserService'
+import { getTeamMembers } from '@/services/assistanceUserService'
 import { getSession }                   from '@/services/currentSessionService'
 import { RequestCard }                  from '@/components/assisteur/RequestCard'
 import { AssisteurOperationsDrawer }    from '@/components/assisteur/AssisteurOperationsDrawer'
@@ -24,7 +24,7 @@ import {
 import { getEffectiveDuration }         from '@/types/request'
 import type { AssistanceRequest }       from '@/types/request'
 import type { AccountType, MockSession } from '@/types/session'
-import type { AssistanceUser }          from '@/types/assistanceUser'
+import type { TeamMember }              from '@/types/assistanceUser'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -232,7 +232,7 @@ function OpCard({ r, hint, accent }: { r: AssistanceRequest; hint: string; accen
 
 export default function AssisteurPipelinePage() {
   const [allRequests,  setAllRequests]  = useState<AssistanceRequest[]>([])
-  const [users,        setUsers]        = useState<AssistanceUser[]>([])
+  const [members,      setMembers]      = useState<TeamMember[]>([])
   const [session,      setSession]      = useState<MockSession | null>(null)
   const [loading,      setLoading]      = useState(true)
   const [refreshing,   setRefreshing]   = useState(false)
@@ -248,9 +248,9 @@ export default function AssisteurPipelinePage() {
   const accountType = session?.accountType
 
   const load = useCallback(async () => {
-    const [reqs, usrs] = await Promise.all([getAllRequests(), Promise.resolve(getAllUsers())])
+    const [reqs, mbrs] = await Promise.all([getAllRequests(), getTeamMembers()])
     setAllRequests(reqs)
-    setUsers(usrs)
+    setMembers(mbrs)
   }, [])
 
   useEffect(() => {
@@ -267,9 +267,7 @@ export default function AssisteurPipelinePage() {
 
   const scopedRequests = useMemo(() => {
     if (!session) return allRequests
-    const role = session.companyRole
-    if (!role) return allRequests
-    if (scope === 'mine' || !canSeeTeam) return filterRequestsForUser(allRequests, session.userId, role)
+    if (scope === 'mine' || !canSeeTeam) return allRequests.filter(r => r.createdByUserId === session.userId)
     if (filterUserId !== 'all') return allRequests.filter(r => r.createdByUserId === filterUserId)
     return allRequests
   }, [allRequests, session, scope, canSeeTeam, filterUserId])
@@ -386,16 +384,16 @@ export default function AssisteurPipelinePage() {
         </div>
 
         {/* Filtre équipe */}
-        {canSeeTeam && scope === 'team' && users.length > 0 && (
+        {canSeeTeam && scope === 'team' && members.length > 0 && (
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             <MemberBtn active={filterUserId === 'all'} onClick={() => setFilterUserId('all')}>
               Tous ({allRequests.length})
             </MemberBtn>
-            {users.map(u => {
-              const count = allRequests.filter(r => r.createdByUserId === u.id).length
+            {members.map(m => {
+              const count = allRequests.filter(r => r.createdByUserId === m.id).length
               return (
-                <MemberBtn key={u.id} active={filterUserId === u.id} onClick={() => setFilterUserId(u.id)}>
-                  {u.firstName} {u.lastName[0]}. ({count})
+                <MemberBtn key={m.id} active={filterUserId === m.id} onClick={() => setFilterUserId(m.id)}>
+                  {m.fullName.split(' ')[0]} {(m.fullName.split(' ')[1] ?? '')[0]}. ({count})
                 </MemberBtn>
               )
             })}

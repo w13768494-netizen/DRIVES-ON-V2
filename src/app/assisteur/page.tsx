@@ -10,7 +10,7 @@ import {
   CheckCircle2, Bell, CalendarCheck, Zap,
 } from 'lucide-react'
 import { getAllRequests }           from '@/services/requestService'
-import { getAllUsers, filterRequestsForUser } from '@/services/assistanceUserService'
+import { getTeamMembers } from '@/services/assistanceUserService'
 import { getSession }              from '@/services/currentSessionService'
 import { RequestStats }            from '@/components/assisteur/RequestStats'
 import { AssisteurOperationsDrawer } from '@/components/assisteur/AssisteurOperationsDrawer'
@@ -19,7 +19,7 @@ import { getRentalAlertState, getEndDate } from '@/lib/rentalDates'
 import { VEHICLE_CATEGORY_LABELS } from '@/types/vehicleCategory'
 import type { AssistanceRequest }  from '@/types/request'
 import type { AccountType, MockSession } from '@/types/session'
-import type { AssistanceUser }     from '@/types/assistanceUser'
+import type { TeamMember }         from '@/types/assistanceUser'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -220,7 +220,7 @@ function ActionCenter({
 
 export default function AssisteurDashboard() {
   const [allRequests,  setAllRequests]  = useState<AssistanceRequest[]>([])
-  const [users,        setUsers]        = useState<AssistanceUser[]>([])
+  const [members,      setMembers]      = useState<TeamMember[]>([])
   const [session,      setSession]      = useState<MockSession | null>(null)
   const [loading,      setLoading]      = useState(true)
   const [refreshing,   setRefreshing]   = useState(false)
@@ -234,9 +234,9 @@ export default function AssisteurDashboard() {
   useEffect(() => {
     const s = getSession()
     setSession(s)
-    Promise.all([getAllRequests(), Promise.resolve(getAllUsers())]).then(([reqs, usrs]) => {
+    Promise.all([getAllRequests(), getTeamMembers()]).then(([reqs, mbrs]) => {
       setAllRequests(reqs)
-      setUsers(usrs)
+      setMembers(mbrs)
       setLoading(false)
     })
   }, [])
@@ -250,9 +250,7 @@ export default function AssisteurDashboard() {
 
   const scopedRequests = useMemo(() => {
     if (!session) return allRequests
-    const role = session.companyRole
-    if (!role) return allRequests
-    if (scope === 'mine' || !canSeeTeam) return filterRequestsForUser(allRequests, session.userId, role)
+    if (scope === 'mine' || !canSeeTeam) return allRequests.filter(r => r.createdByUserId === session.userId)
     if (filterUserId !== 'all') return allRequests.filter(r => r.createdByUserId === filterUserId)
     return allRequests
   }, [allRequests, session, scope, canSeeTeam, filterUserId])
@@ -344,16 +342,16 @@ export default function AssisteurDashboard() {
         </div>
 
         {/* Filtre membre d'équipe */}
-        {canSeeTeam && scope === 'team' && users.length > 0 && (
+        {canSeeTeam && scope === 'team' && members.length > 0 && (
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             <MemberBtn active={filterUserId === 'all'} onClick={() => setFilterUserId('all')}>
               Tous ({allRequests.length})
             </MemberBtn>
-            {users.map(u => {
-              const count = allRequests.filter(r => r.createdByUserId === u.id).length
+            {members.map(m => {
+              const count = allRequests.filter(r => r.createdByUserId === m.id).length
               return (
-                <MemberBtn key={u.id} active={filterUserId === u.id} onClick={() => setFilterUserId(u.id)}>
-                  {u.firstName} {u.lastName[0]}. ({count})
+                <MemberBtn key={m.id} active={filterUserId === m.id} onClick={() => setFilterUserId(m.id)}>
+                  {m.fullName.split(' ')[0]} {(m.fullName.split(' ')[1] ?? '')[0]}. ({count})
                 </MemberBtn>
               )
             })}

@@ -12,28 +12,12 @@ export const ASSISTANCE_USER_ROLE_COLORS: Record<AssistanceUserRole, string> = {
   charge_assistance: 'bg-slate-100  text-slate-600',
 }
 
-export interface AssistanceCompany {
-  id:     string
-  name:   string
-  logo?:  string
-  type:   string
-  status: 'active' | 'inactive'
-}
-
-export interface AssistanceUser {
-  id:           string
-  companyId:    string
-  companyName?: string
-  firstName:    string
-  lastName:     string
-  username:     string
-  email:        string
-  phone?:       string
-  role:         AssistanceUserRole
-  active:       boolean
-  accessCode:   string
-  lastLoginAt?: string  // ISO
-  createdAt:    string  // ISO
+export interface TeamMember {
+  id:        string
+  fullName:  string
+  email:     string
+  teamRole:  AssistanceUserRole
+  isActive:  boolean
 }
 
 export interface UserStats {
