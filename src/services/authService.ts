@@ -3,6 +3,7 @@
 import { createClient }                        from '@/lib/supabase/client'
 import { setSession, clearSession }            from './currentSessionService'
 import type { UserRole, AccountType, AppSession } from '@/types/session'
+import type { AssistanceUserRole }             from '@/types/assistanceUser'
 
 // ── signIn ────────────────────────────────────────────────────────────────────
 // Le rôle est lu depuis profiles (source de vérité protégée par trigger),
@@ -18,7 +19,7 @@ export async function signIn(
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('role, account_type')
+    .select('role, account_type, org_id, team_role')
     .eq('id', data.user.id)
     .single()
 
@@ -33,6 +34,8 @@ export async function signIn(
     userId:      data.user.id,
     userName:    meta.full_name ?? email,
     company:     meta.company_name ?? '',
+    orgId:       (profile.org_id as string) ?? undefined,
+    companyRole: (profile.team_role as AssistanceUserRole | null) ?? undefined,
     createdAt:   new Date().toISOString(),
   }
   setSession(session)
@@ -58,7 +61,7 @@ export async function refreshSession(): Promise<AppSession | null> {
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('role, account_type')
+    .select('role, account_type, org_id, team_role')
     .eq('id', user.id)
     .single()
 
@@ -71,6 +74,8 @@ export async function refreshSession(): Promise<AppSession | null> {
     userId:      user.id,
     userName:    meta.full_name ?? user.email ?? '',
     company:     meta.company_name ?? '',
+    orgId:       (profile.org_id as string) ?? undefined,
+    companyRole: (profile.team_role as AssistanceUserRole | null) ?? undefined,
     createdAt:   new Date().toISOString(),
   }
   setSession(session)

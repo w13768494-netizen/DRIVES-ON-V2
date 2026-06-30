@@ -22,6 +22,7 @@ export interface AppSession {
   userId:       string
   userName:     string
   company:      string
+  orgId?:       string
   companyRole?: AssistanceUserRole
   createdAt:    string
 }
