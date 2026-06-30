@@ -456,3 +456,21 @@ SELECT pg_catalog.setval('"auth"."refresh_tokens_id_seq"', 234, true);
 -- \unrestrict rcWyM9f6TScoTfO5pdZFcwN0WbTCUGfX3Cw59AzHqR0o5XQLbQuinZvhzBd31ox
 
 RESET ALL;
+
+-- ── Backfill organisations (dev local) ────────────────────────────────────────
+-- Le seed tourne après les migrations : on (re)crée les orgs pour les profils
+-- assisteur du seed qui n'en ont pas encore.
+DO $$
+DECLARE p RECORD; new_org uuid;
+BEGIN
+  FOR p IN SELECT id, company_name, full_name, account_type FROM public.profiles WHERE role='assisteur' AND org_id IS NULL LOOP
+    INSERT INTO public.organizations (name, account_type)
+      VALUES (COALESCE(NULLIF(p.company_name,''), p.full_name, 'Organisation'), p.account_type)
+      RETURNING id INTO new_org;
+    UPDATE public.profiles SET org_id=new_org, team_role='admin' WHERE id=p.id;
+  END LOOP;
+END $$;
+UPDATE public.assistance_requests ar SET org_id=pr.org_id FROM public.profiles pr
+  WHERE ar.org_id IS NULL
+    AND ar.created_by_user_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    AND pr.id = ar.created_by_user_id::uuid;

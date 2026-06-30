@@ -82,6 +82,12 @@ CREATE OR REPLACE FUNCTION "public"."handle_new_user"() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
   AS $$
   BEGIN
+    -- Invite-only : seuls les utilisateurs créés par un flux admin (generateLink,
+    -- qui pose invited_at) obtiennent un profil. Un signup public (invited_at NULL)
+    -- ne peut pas s'auto-attribuer role/org_id/team_role -> fail closed.
+    IF NEW.invited_at IS NULL THEN
+      RETURN NEW;
+    END IF;
     INSERT INTO public.profiles (id, role, full_name, company_name, account_type, org_id, team_role)
     VALUES (
       NEW.id,
