@@ -56,6 +56,10 @@ export async function POST(request: NextRequest) {
   const { data: org } = await supabaseAdmin
     .from('organizations').select('name, account_type').eq('id', auth.orgId).single()
 
+  if (!org) {
+    return NextResponse.json({ error: 'Organisation introuvable' }, { status: 500 })
+  }
+
   const appUrl = getAppUrl()
   const meta = {
     role:         'assisteur',
@@ -83,7 +87,10 @@ export async function POST(request: NextRequest) {
         if (elapsed < 5 * 60 * 1000) {
           return NextResponse.json({ error: 'Invitation déjà envoyée très récemment.' }, { status: 429 })
         }
-        await supabaseAdmin.auth.admin.deleteUser(existing.id)
+        const del = await supabaseAdmin.auth.admin.deleteUser(existing.id)
+        if (del.error) {
+          return NextResponse.json({ error: 'Impossible de réinitialiser une invitation existante' }, { status: 500 })
+        }
       }
       const retry = await supabaseAdmin.auth.admin.generateLink({
         type: 'invite', email,
