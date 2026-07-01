@@ -1,4 +1,4 @@
-import { Mail, Edit2, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Mail, ToggleLeft, ToggleRight } from 'lucide-react'
 import type { TeamMember, UserStats, AssistanceUserRole } from '@/types/assistanceUser'
 import { ASSISTANCE_USER_ROLE_LABELS, ASSISTANCE_USER_ROLE_COLORS } from '@/types/assistanceUser'
 
@@ -81,7 +81,6 @@ export function AssistanceUserCard({ member, stats, canEdit, onToggleActive, onC
               <option value="superviseur">Superviseur</option>
               <option value="charge_assistance">Chargé d&apos;assistance</option>
             </select>
-            <Edit2 className="w-4 h-4 text-slate-300 shrink-0" />
           </div>
         )}
       </div>

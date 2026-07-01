@@ -7,7 +7,6 @@ export function ResetDataButton() {
     if (!confirm('Réinitialiser toutes les données de démo ?')) return
     localStorage.removeItem('driveson:requests:v2')
     localStorage.removeItem('driveson:documents:v2')
-    localStorage.removeItem('driveson:assistance-users')
     // Garde la session active — le reset ne déconnecte pas
     window.location.reload()
   }
