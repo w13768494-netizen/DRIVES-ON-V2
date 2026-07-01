@@ -7,3 +7,6 @@ supabase/.temp
 .claude
 
 .vercel
+
+# Notes de dev locales (non versionnées)
+dev/
