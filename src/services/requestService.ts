@@ -228,7 +228,20 @@ function reviveDates(_key: string, value: unknown): unknown {
   return value
 }
 
+// Garde R1 : ces helpers ne sont atteints que si USE_SUPABASE est faux. En
+// production, cela signifie que Supabase est mal configuré → échec bruyant
+// plutôt qu'un fallback localStorage silencieux (perte de données invisible).
+function assertNotProdFallback(): void {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      '[requestService] Fallback localStorage atteint en production — ' +
+      'NEXT_PUBLIC_SUPABASE_URL mal configuré (Supabase requis).',
+    )
+  }
+}
+
 function loadStore(): AssistanceRequest[] {
+  assertNotProdFallback()
   if (typeof window === 'undefined') return [...MOCK_REQUESTS]
   try {
     const raw = localStorage.getItem(STORE_KEY)
@@ -240,6 +253,7 @@ function loadStore(): AssistanceRequest[] {
 }
 
 function saveStore(data: AssistanceRequest[]): void {
+  assertNotProdFallback()
   if (typeof window === 'undefined') return
   try { localStorage.setItem(STORE_KEY, JSON.stringify(data)) } catch { /* ignore */ }
 }
