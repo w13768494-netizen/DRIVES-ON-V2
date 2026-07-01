@@ -19,12 +19,17 @@ export async function signIn(
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('role, account_type, org_id, team_role')
+    .select('role, account_type, org_id, team_role, is_active')
     .eq('id', data.user.id)
     .single()
 
   if (profileError || !profile?.role) {
     return { session: null, error: 'Profil introuvable. Contactez un administrateur.' }
+  }
+
+  if (profile.is_active === false) {
+    await supabase.auth.signOut()
+    return { session: null, error: 'Compte désactivé. Contactez un administrateur.' }
   }
 
   const meta = data.user.user_metadata
@@ -44,10 +49,23 @@ export async function signIn(
 
 // ── signOut ───────────────────────────────────────────────────────────────────
 
+// Clés localStorage sensibles purgées à la déconnexion (PII / données métier).
+// On conserve les préférences UI non sensibles (ex. driveson:sidebar).
+const SENSITIVE_KEYS = [
+  'driveson:draft:nouvelle-demande:v1', // PII sinistré
+  'driveson:requests:v3',                // dossiers (fallback)
+  'driveson:candidatures:v1',            // candidatures (fallback)
+]
+
 export async function signOut(): Promise<void> {
   const supabase = createClient()
   await supabase.auth.signOut()
   clearSession()
+  if (typeof window !== 'undefined') {
+    for (const k of SENSITIVE_KEYS) {
+      try { localStorage.removeItem(k) } catch { /* ignore */ }
+    }
+  }
 }
 
 // ── refreshSession ────────────────────────────────────────────────────────────
@@ -61,11 +79,13 @@ export async function refreshSession(): Promise<AppSession | null> {
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('role, account_type, org_id, team_role')
+    .select('role, account_type, org_id, team_role, is_active')
     .eq('id', user.id)
     .single()
 
   if (profileError || !profile?.role) { clearSession(); return null }
+
+  if (profile.is_active === false) { await supabase.auth.signOut(); clearSession(); return null }
 
   const meta = user.user_metadata
   const session: AppSession = {
