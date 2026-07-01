@@ -32,7 +32,7 @@ Numérotation d'origine de l'analyse, avec statut vérifié dans le code au 2026
 | # | Point | Statut |
 |---|---|---|
 | 10 | 0 test (state-machine 13 états, verrous optimistes, crons concurrents, finance) | ⏳ reporté (consigne : process avant tests) |
-| 11 | Logique métier critique côté client (`requestService.ts`, 832 l. + localStorage/mocks) | 🔲 (inchangé, confirmé) |
+| 11 | Logique métier critique côté client (`requestService.ts`, 832 l.) | 🟡 **Partiel** — colonnes finance protégées (✅ trigger `026`) ; refonte des transitions statut = fast-follow |
 | 12 | Pas de reporting / KPI métier (délai mise en relation, taux accept./loueur, taux litige, CA/ville) | 🔲 |
 
 ### Priorisation — état actuel
@@ -54,6 +54,7 @@ Numérotation d'origine de l'analyse, avec statut vérifié dans le code au 2026
 | S3 | Jumelle `loueur_read_assigned_requests` (IDOR `external_id` survivant, manqué par 021) | ✅ | migration `025` |
 | S4 | Confiance aux métadonnées client dans `handle_new_user` (escalade au signup) | ✅ | gate `invited_at` (migration `023`) |
 | S5 | Trigger `on_auth_user_created` non versionné (gate non reproductible depuis les migrations) | ✅ | migration `024` |
+| S6 | Falsification finance côté client (RLS row-level ≠ column-level : un assisteur pouvait écrire `payment_status='paye'`, `amount_due_to_loueur=0`, `commission_*` sur son dossier via un update direct) | ✅ | trigger `prevent_finance_tampering` — migration `026` |
 
 ### A.2 — Anomalies de structure
 | # | Point | Sévérité | Statut | Réf |
@@ -87,7 +88,8 @@ Numérotation d'origine de l'analyse, avec statut vérifié dans le code au 2026
 | B4 | Validation format email / UUID sur routes team | ⏳ | — |
 | B5 | `listUsers({ perPage: 1000 })` — scalabilité | ⏳ | OK volume actuel |
 | B6 | Logger actif en `NODE_ENV=test` | ⏳ | à ajuster si tests ajoutés |
-| B7 | Logique métier lourde côté client (`requestService.ts`, 832 l.) | 🔲 | transitions sensibles à passer en routes serveur/RPC |
+| B7a | Falsification finance côté client | ✅ | fermé par trigger `026` (voir S6) |
+| B7b | **Refonte des transitions de statut côté serveur** (`requestService.ts` 832 l. + `loueurService.ts` : `confirmByAssisteur`, `lockRequestAfterConfirmation`, `validateTransfer`… → routes serveur/RPC, puis verrouiller la RLS sur `status`) | 🔲 **À traiter plus tard** | gros chantier ; **à faire APRÈS les tests (#10)**, pas sous pression MEP. Le trigger `026` couvre déjà le risque argent ; cette refonte concerne l'intégrité des transitions d'état. |
 
 ---
 
