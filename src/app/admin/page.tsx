@@ -232,9 +232,9 @@ export default function AdminPlatformPage() {
       alert:  enAttentePay > 0,
     },
     {
-      label:  'Candidatures',
-      sub:    'Dossiers à traiter',
-      href:   '/admin/candidatures',
+      label:  'Demandes d\'accès',
+      sub:    'À traiter',
+      href:   '/admin/demandes-acces',
       icon:   <UserCheck className="w-5 h-5" />,
       color:  'bg-amber-50 text-amber-600',
       count:  pendingCount,
@@ -506,7 +506,7 @@ export default function AdminPlatformPage() {
             {/* Ligne 2 : alertes + taux */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
               <KpiCard icon={<TrendingUp className="w-5 h-5" />}    label="Taux de confirmation"   value={`${tauxConfirmation} %`} sub={`${confirmed.length} confirmées`}                                  color="green"  loading={loading} />
-              <KpiCard icon={<UserCheck className="w-5 h-5" />}     label="Candidatures en attente" value={pendingCount}           sub="À traiter"                                                          color={pendingCount > 0 ? 'amber' : 'slate'} loading={loading} alert={pendingCount > 0} />
+              <KpiCard icon={<UserCheck className="w-5 h-5" />}     label="Demandes d'accès en attente" value={pendingCount}           sub="À traiter"                                                          color={pendingCount > 0 ? 'amber' : 'slate'} loading={loading} alert={pendingCount > 0} />
               <KpiCard icon={<ArrowRightLeft className="w-5 h-5" />} label="Transferts en cours"   value={transferts}             sub="Décision en attente"                                                color={transferts > 0 ? 'orange' : 'slate'}  loading={loading} alert={transferts > 0} />
               <KpiCard icon={<AlertTriangle className="w-5 h-5" />} label="Alertes critiques"      value={alertesRouge}           sub="dossiers avec alerte rouge"                                        color={alertesRouge > 0 ? 'orange' : 'slate'} loading={loading} alert={alertesRouge > 0} />
               <KpiCard icon={<Activity className="w-5 h-5" />}      label="Cette semaine"          value={weekReqs}              sub="demandes créées"                                                    color="brand"  loading={loading} />
